@@ -74,5 +74,5 @@ iface = gr.Interface(
     examples=["1562990.jpg"]
 )
 
-iface.launch()
+iface.launch(queue=True)
 

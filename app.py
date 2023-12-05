@@ -71,8 +71,8 @@ iface = gr.Interface(
     fn=fn,
     inputs=gr.Image(type="numpy"),
     outputs=gr.Image(type="pil"),
-    examples=["1562990.jpg"]
+    examples=["1562990.jpg", "612898.jpg"]
 )
 
-iface.launch(queue=True)
+iface.launch()
 

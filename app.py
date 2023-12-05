@@ -65,9 +65,13 @@ def fn(image):
     return Image.fromarray(drawed[..., ::-1])
 
 iface = gr.Interface(
-    fn=fn
+    # design titles and text descriptions
+    title="Anime Subject Instance Segmentation",
+    description="This is a demo of Anime Instance Segmentation with our proposed model in [AnimeInstanceSegmentation](https://cartoonsegmentation.github.io/)",
+    fn=fn,
     inputs=gr.Image(type="numpy"),
-    outputs=gr.Image(type="pil")
+    outputs=gr.Image(type="pil"),
+    examples=["1562990.jpg"]
 )
 
 iface.launch()

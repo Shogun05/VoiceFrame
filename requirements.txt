@@ -1,0 +1,15 @@
+einops
+imageio
+git+https://github.com/cocodataset/panopticapi.git
+pytorch-lightning
+albumentations
+huggingface_hub
+
+# For Web UI
+gradio
+torch 
+torchvision
+openmim
+mmengine
+mmcv>=2.0.0
+mmdet

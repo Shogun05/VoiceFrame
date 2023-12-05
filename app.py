@@ -65,9 +65,10 @@ def fn(image):
     return Image.fromarray(drawed[..., ::-1])
 
 iface = gr.Interface(
-    inputs=gr.Image(type="numpy"),
-    outputs="Image",
     fn=fn
+    inputs=gr.Image(type="numpy"),
+    outputs=gr.Image(type="pil")
 )
 
+iface.launch()
 

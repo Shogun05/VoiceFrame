@@ -4,6 +4,7 @@ git+https://github.com/cocodataset/panopticapi.git
 pytorch-lightning
 albumentations
 huggingface_hub
+onnxruntime
 
 # For Web UI
 gradio

@@ -10,6 +10,3 @@ gradio
 torch 
 torchvision
 openmim
-mmengine
-mmcv>=2.0.0
-mmdet

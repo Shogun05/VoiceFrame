@@ -1,5 +1,11 @@
 import gradio as gr
 
+import os
+
+os.system("mim install mmengine")
+os.system('mim install "mmcv>=2.0.0"')
+os.system("mim install mmdet")
+
 import cv2
 from PIL import Image
 import numpy as np
@@ -7,7 +13,7 @@ import numpy as np
 from animeinsseg import AnimeInsSeg, AnimeInstances
 from animeinsseg.anime_instances import get_color
 
-import os
+
 
 if not os.path.exists("models"):
     os.mkdir("models")

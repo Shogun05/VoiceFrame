@@ -67,11 +67,11 @@ def fn(image):
 iface = gr.Interface(
     # design titles and text descriptions
     title="Anime Subject Instance Segmentation",
-    description="Segment image subjects with the proposed model in the paper [*Instance-guided Cartoon Editing with a Large-scale Dataset*](https://cartoonsegmentation.github.io/)",
+    description="Segment image subjects with the proposed model in the paper [*Instance-guided Cartoon Editing with a Large-scale Dataset*](https://cartoonsegmentation.github.io/).",
     fn=fn,
     inputs=gr.Image(type="numpy"),
     outputs=gr.Image(type="pil"),
-    examples=["1562990.jpg", "612989.jpg"]
+    examples=["1562990.jpg", "612989.jpg", "sample_3.jpg"]
 )
 
 iface.launch()

@@ -42,6 +42,8 @@ def fn(image):
     im_h, im_w = img.shape[:2]
 
     # instances.bboxes, instances.masks will be None, None if no obj is detected
+    if instances.bboxes is None:
+        return Image.fromarray(drawed[..., ::-1])
 
     for ii, (xywh, mask) in enumerate(zip(instances.bboxes, instances.masks)):
         color = get_color(ii)

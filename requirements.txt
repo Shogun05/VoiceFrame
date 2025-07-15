@@ -8,7 +8,7 @@ onnxruntime
 
 # For Web UI
 gradio
-torch==2.4.1+cpu
+torch==2.4.0
 torchvision
 openmim
 numpy==1.26.4

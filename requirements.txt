@@ -12,3 +12,4 @@ torch==2.4.0
 torchvision
 openmim
 numpy==1.26.4
+scipy==1.11.2

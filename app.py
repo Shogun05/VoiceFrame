@@ -3,7 +3,7 @@ import gradio as gr
 import os
 
 os.system("mim install mmengine")
-os.system('mim install "mmcv>=2.0.0"')
+os.system('mim install "mmcv==2.1.0"')
 os.system("mim install mmdet")
 
 import cv2

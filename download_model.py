@@ -1,17 +1,16 @@
-# Create a complete download script - save as download_all_models.py
-from huggingface_hub import snapshot_download
+# Create a simple Python script to download the model
+# Save this as download_model.py
+from huggingface_hub import hf_hub_download
 import os
 
-# Remove existing directory to start fresh
-import shutil
-if os.path.exists("models/AnimeInstanceSegmentation"):
-    shutil.rmtree("models/AnimeInstanceSegmentation")
+# Create models directory if it doesn't exist
+os.makedirs("models/AnimeInstanceSegmentation", exist_ok=True)
 
-# Download all files from the repository
-snapshot_download(
-    repo_id="dreMaz/AnimeInstanceSegmentation", 
-    local_dir="models/AnimeInstanceSegmentation",
-    allow_patterns=["*.ckpt", "*.pt", "*.pth"]  # Only download model files
+# Download the checkpoint file
+hf_hub_download(
+    repo_id="dreMaz/AnimeInstanceSegmentation",
+    filename="rtmdetl_e60.ckpt",
+    local_dir="models/AnimeInstanceSegmentation"
 )
 
-print("All models downloaded!")
+print("Model downloaded successfully!")

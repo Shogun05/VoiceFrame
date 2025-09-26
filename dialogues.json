@@ -8,10 +8,12 @@
     "characters": [
       {
         "name": "Frog",
+        "gender": "male",
         "appearance": "A plump, emerald-green frog with prominent golden eyes, smooth, wet-looking skin, and broad webbed feet, poised near the river's edge."
       },
       {
         "name": "Scorpion",
+        "gender": "female",
         "appearance": "A compact, charcoal-black scorpion with a glossy, segmented exoskeleton, sharp, articulated pincers, and a deadly, segmented tail arcing over its back, tipped with a glistening stinger."
       }
     ],

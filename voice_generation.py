@@ -1,90 +1,103 @@
 import os
 import json
 import wave
+import random
 from pathlib import Path
 from piper import PiperVoice, SynthesisConfig
 
-# -----------------------------
-# FUNCTIONS
-# -----------------------------
-def ensure_dir(directory: str):
-    """Ensure that a directory exists."""
-    Path(directory).mkdir(exist_ok=True, parents=True)
-
-def load_voices(character_voices: dict, voice_dir: str, use_cuda: bool = False):
-    """
-    Load Piper voices for each character dynamically.
-    """
-    voices = {}
-    for char, voice_file in character_voices.items():
-        voice_path = os.path.join(voice_dir, voice_file)
-        if not os.path.exists(voice_path):
-            raise FileNotFoundError(f"Voice file not found: {voice_path}")
-        voices[char] = PiperVoice.load(voice_path, use_cuda=use_cuda)
-        print(f"[INFO] Loaded voice for {char} -> {voice_file}")
-    return voices
-
-def synthesize_dialogues(dialogues: list, voices: dict, output_dir: str,
-                         syn_config: SynthesisConfig):
-    """
-    Generate WAV files for each dialogue line.
-    """
-    ensure_dir(output_dir)
-
-    for i, dlg in enumerate(dialogues):
-        char = dlg.get("character")
-        line = dlg.get("line", "")
-        start = dlg.get("start", "").replace(":", "-")
-        end = dlg.get("end", "").replace(":", "-")
-
-        if not char or not line:
-            print(f"[WARN] Skipping dialogue index {i} (missing character or line)")
-            continue
-        if char not in voices:
-            print(f"[WARN] No voice loaded for {char}, skipping")
-            continue
-
-        out_file = os.path.join(output_dir, f"{i:03d}_{char}_{start}_{end}.wav")
-        print(f"[INFO] Generating audio for {char}: {line}")
-
-        with wave.open(out_file, "wb") as wav_file:
-            voices[char].synthesize_wav(line, wav_file, syn_config)
-
-def synthesize_from_file(dialogue_file: str, character_voices: dict, voice_dir: str,
-                         output_dir: str, syn_config: SynthesisConfig = None,
-                         use_cuda: bool = False):
-    """
-    Load dialogues from a JSON file and synthesize audio for all lines.
-    
-    Args:
-        dialogue_file: JSON file containing `scene.dialogues`
-        character_voices: dict mapping character names to voice files
-        voice_dir: folder where voice files are stored
-        output_dir: folder to save WAV files
-        syn_config: Piper SynthesisConfig object (optional)
-        use_cuda: whether to use GPU
-    """
-    if not os.path.exists(dialogue_file):
-        raise FileNotFoundError(f"JSON file not found: {dialogue_file}")
-
-    with open(dialogue_file, "r", encoding="utf-8") as f:
-        data = json.load(f)
-    
-    # Extract dialogues from JSON structure
-    dialogues = data.get("scene", {}).get("dialogues", [])
-    if not dialogues:
-        print("[WARN] No dialogues found in JSON")
-        return
-
-    if syn_config is None:
-        syn_config = SynthesisConfig(
+class VoiceSynthesizer:
+    def __init__(self, voice_dir: str, output_dir: str, use_cuda: bool = False,
+                 syn_config: SynthesisConfig = None):
+        self.voice_dir = voice_dir
+        self.output_dir = output_dir
+        self.use_cuda = use_cuda
+        self.syn_config = syn_config or SynthesisConfig(
             volume=1.0,
             length_scale=1.0,
             noise_scale=0.6,
             noise_w_scale=0.6,
             normalize_audio=True
         )
+        Path(self.output_dir).mkdir(exist_ok=True, parents=True)
+        self.voices = {}  # character name -> PiperVoice cache
 
-    voices = load_voices(character_voices, voice_dir, use_cuda)
-    synthesize_dialogues(dialogues, voices, output_dir, syn_config)
-    print(f"[ALL DONE] Audio saved in {output_dir}/")
+    def _select_random_voice(self, gender: str) -> str:
+        """Pick a random .onnx voice from voices/{gender}"""
+        # normalize gender to either 'male' or 'female'
+        g = (gender or "").strip().lower()
+        if g.startswith("f"):
+            preferred = ["female", "male"]
+        else:
+            preferred = ["male", "female"]
+
+        # try preferred folders in order and return first available voice
+        for p in preferred:
+            gender_folder = os.path.join(self.voice_dir, p)
+            if not os.path.exists(gender_folder):
+                continue
+
+            candidates = [f for f in os.listdir(gender_folder) if f.endswith(".onnx")]
+            if candidates:
+                chosen = random.choice(candidates)
+                return os.path.join(gender_folder, chosen)
+
+        # nothing found in either folder
+        raise FileNotFoundError(
+            f"No voice .onnx files found in any gender folders under {self.voice_dir} (tried: {preferred})"
+        )
+
+    def _get_voice_for_character(self, char_name: str, gender: str) -> PiperVoice:
+        """Return cached voice if available; otherwise pick a random one and cache it."""
+        if char_name in self.voices:
+            return self.voices[char_name]
+
+        voice_file = self._select_random_voice(gender)
+        voice = PiperVoice.load(voice_file, use_cuda=self.use_cuda)
+        self.voices[char_name] = voice
+        print(f"Selected {os.path.basename(voice_file)} for {char_name} ({gender})")
+        return voice
+
+    def synthesize_dialogues(self, dialogues: list, characters: list):
+        """
+        Generate WAV files for each dialogue line.
+        Uses the character gender to select voice from voices/{gender}.
+        Caches one voice per character.
+        """
+        # Build mapping: normalized character name (lowercase, stripped) -> normalized gender
+        char_gender_map = {}
+        for c in characters:
+            name = c.get("name")
+            if not name:
+                continue
+            key = name.strip().lower()
+            gen = str(c.get("gender", "")).strip().lower()
+            # normalize values like 'F', 'female', 'Female' etc.
+            if gen.startswith("f"):
+                char_gender_map[key] = "female"
+            else:
+                # default to male for any unknown/missing value
+                char_gender_map[key] = "male"
+
+        # show a concise mapping of characters to genders
+        print(f"character genders: {char_gender_map}")
+
+        for i, dlg in enumerate(dialogues):
+            char_raw = dlg.get("character")
+            line = dlg.get("line", "")
+            start = dlg.get("start", "").replace(":", "-")
+            end = dlg.get("end", "").replace(":", "-")
+
+            if not char_raw or not line:
+                print(f"[WARN] Skipping dialogue {i} (missing character or line)")
+                continue
+
+            canonical_name = char_raw.strip()
+            cache_key = canonical_name.lower()
+            gender = char_gender_map.get(cache_key, "male")  # default male if missing
+            voice = self._get_voice_for_character(cache_key, gender)
+
+            out_file = os.path.join(self.output_dir, f"{i:03d}_{canonical_name}_{start}_{end}.wav")
+            print(f"Generating audio for {canonical_name} ({line})")
+
+            with wave.open(out_file, "wb") as wav_file:
+                voice.synthesize_wav(line, wav_file, self.syn_config)

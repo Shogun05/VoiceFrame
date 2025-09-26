@@ -23,24 +23,15 @@ python -m pip install -r .\requirements.txt
 
 If you don't have a `requirements.txt`, install the packages you need (for example `onnxruntime` or whatever the project requires). The included `requirements.txt` should list them.
 
-## 3) Create a voices directory for your preferred language
+## 3) Download both `.onnx` and `.onnx.json` files from the zip file
 
-The code expects voice models in a `voices` directory. Create a folder for the language/voice you want (for example `en` or `ar`).
+Download a pre-packaged ZIP of the `voices/` folder from Google Drive (contains `.onnx` and `.onnx.json` files):
 
-## 4) Download both `.onnx` and `.onnx.json` files from the Hugging Face piper-voices repo
+https://drive.google.com/file/d/1k22GJTXCtRCsQs_r-iiVic8vuMiw0bRI/view?usp=drive_link
 
-Open the web page with available voices:
+Save the ZIP and extract its contents into the repository `voices/` folder.
 
-https://huggingface.co/rhasspy/piper-voices/tree/main
-
-Find the specific voice folder you want and copy the raw download links for the `.onnx` and `.onnx.json` files. Hugging Face raw file URLs follow this pattern:
-
-```
-https://huggingface.co/rhasspy/piper-voices/resolve/main/<voice-folder>/<file>
-```
-
-
-## 5) Run the app
+## 4) Run the app
 
 Once the voice model files are in `voices/` run:
 

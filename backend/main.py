@@ -5,14 +5,17 @@ import os
 import ffmpeg
 import shutil
 from pydantic import BaseModel
-
+from dotenv import load_dotenv
+from invoke import InvokeClient
 from gemini_client import GeminiClient
 
+# Load environment variables from .env file
+load_dotenv()
+
 # --- Configuration ---
-# It's recommended to set this in your environment
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "YOUR_API_KEY_HERE")
-if GEMINI_API_KEY == "YOUR_API_KEY_HERE":
-    print("Warning: GEMINI_API_KEY not set. Using a placeholder.")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+if not GEMINI_API_KEY:
+    raise ValueError("GEMINI_API_KEY not found in .env file or environment.")
 
 # Get the absolute path of the directory where the script is located
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -21,7 +24,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 app = FastAPI()
 gemini_client = GeminiClient(api_key=GEMINI_API_KEY)
 
-# Add CORS middleware to allow requests from any origin
+# Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  # Allows all origins
@@ -121,43 +124,120 @@ def generate_video_from_images_and_audio():
     os.remove(input_txt_path)
     print("Video generation complete.")
 
+async def generate_images_from_scene(gemini_result):
+    """Generate images based on the Gemini scene data"""
+    print("Starting image generation from scene data...")
+    
+    # Create images directory
+    image_folder = os.path.join(BASE_DIR, 'images')
+    os.makedirs(image_folder, exist_ok=True)
+    
+    try:
+        scene_data = gemini_result.get('scene', {})
+        background_desc = scene_data.get('background', {}).get('description', '')
+        characters = scene_data.get('characters', [])
+        
+        print(f"Background description: {background_desc}")
+        print(f"Characters: {[char.get('name', 'Unknown') for char in characters]}")
+        
+        if background_desc and characters:
+            # Extract character prompts (just appearances)
+            character_prompts = []
+            for char in characters:
+                appearance = char.get('appearance', '')
+                if appearance:
+                    character_prompts.append(appearance)
+            
+            print(f"Character prompts: {character_prompts}")
+            
+            # Create InvokeClient with background and character prompts
+            client = InvokeClient(
+                background_prompt=background_desc,
+                character_prompts=character_prompts
+            )
+            
+            # Generate the complete scene
+            print("Generating complete scene with InvokeClient...")
+            final_image = client.generate_complete_scene()
+            
+            if final_image:
+                # Save the generated image as 1.jpeg in the images folder
+                image_path = os.path.join(image_folder, "1.jpeg")
+                final_image.save(image_path)
+                print(f"Generated image saved to: {image_path}")
+            else:
+                print("Failed to generate image from InvokeClient")
+        else:
+            print("Missing background description or characters in scene data")
+            
+    except Exception as e:
+        print(f"Error generating images from scene: {e}")
+
 def generate_video_stream():
     video_path = os.path.join(BASE_DIR, "video.mp4")
     with open(video_path, "rb") as video_file:
         while True:
-            chunk = video_file.read(1024 * 1024) # Read 1MB chunks
+            chunk = video_file.read(1024 * 1024)
             if not chunk:
                 break
             yield chunk
 
-@app.post("/video")
-async def stream_video(request: VideoRequest):
-    print(f"Received request for /video with prompt: {request.prompt}")
+@app.get("/video")
+#request: VideoRequest 
+async def create_video_endpoint():
+    request = {"prompt": "Story of frog and scorpion"}
+    print(f"Received request for /video with prompt: {request['prompt']}")
 
-    # 1. Clean up previous run
-    cleanup_directories()
+    try:
+        # 1. Clean up previous run
+        cleanup_directories()
 
-    # 2. Use Gemini to get a script or instructions
-    # For now, we'll just print the result from Gemini
-    # In the future, this result will drive image and audio generation
-    print("Asking Gemini for a response...")
-    gemini_result = gemini_client.ask(request.prompt)
-    print("Received from Gemini:")
-    print(gemini_result)
+        # 2. Use Gemini to get a structured JSON script
+        print("Asking Gemini for a script...")
+        # Add stable diffusion optimization to the prompt
+        optimized_prompt = f"Create a scene with characters optimized for stable diffusion image generation. {request['prompt']}"
+        gemini_result = gemini_client.ask(optimized_prompt)
+        
+        print("Received from Gemini:")
+        print(gemini_result)
 
-    # This is where you would add logic to:
-    # a. Parse gemini_result
-    # b. Generate images based on the result and save them to the 'images' folder
-    # c. Generate audio based on the result and save it to the 'audio' folder
+        if "error" in gemini_result:
+            return Response(content=f"Failed to get valid JSON from Gemini: {gemini_result['raw_output']}", status_code=500)
 
-    # 3. Generate the video from the (not yet created) files
-    generate_video_from_images_and_audio()
+        # 3. Generate images and audio from the Gemini script
+        print("Generating images and audio based on Gemini script...")
+        await generate_images_from_scene(gemini_result)
+        # TODO: Generate audio files from dialogues
 
-    # 4. Stream the video
-    video_path = os.path.join(BASE_DIR, "video.mp4")
-    if not os.path.exists(video_path):
-        print("Video file not found after generation attempt.")
-        return Response(status_code=404, content="Video not found. This is expected since image/audio generation from the prompt is not yet implemented.")
+        # 4. Generate the video from the created files
+        generate_video_from_images_and_audio()
+
+        # 5. Stream the video
+        video_path = os.path.join(BASE_DIR, "video.mp4")
+        if not os.path.exists(video_path):
+            return Response(status_code=404, content="Video file not found after generation. This might happen if image/audio generation is not implemented or fails.")
+        
+        print("Streaming video...")
+        return StreamingResponse(generate_video_stream(), media_type="video/mp4")
+
+    except Exception as e:
+        print(f"An error occurred during the process: {e}")
+        return Response(content=f"An error occurred: {str(e)}", status_code=500)
     
-    print("Streaming video...")
-    return StreamingResponse(generate_video_stream(), media_type="video/mp4")
+@app.get("/image")
+async def get_image():
+    # Create client with background and character prompts
+    client = InvokeClient(
+        background_prompt="sunny meadow with flowers and trees, peaceful landscape",
+        character_prompts=[
+            "cute rabbit sitting and eating a carrot",
+            "colorful butterfly flying"
+        ] 
+    )
+    # Generate the complete scene
+    final_image = client.generate_complete_scene()
+
+    # Save or use the PIL Image
+    if final_image:
+        final_image.save("my_scene.png")
+        final_image.show()  # Display the image

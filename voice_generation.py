@@ -14,11 +14,6 @@ def ensure_dir(directory: str):
 def load_voices(character_voices: dict, voice_dir: str, use_cuda: bool = False):
     """
     Load Piper voices for each character dynamically.
-
-    Args:
-        character_voices: dict mapping character names to .onnx voice files
-        voice_dir: folder where voice files are stored
-        use_cuda: whether to use GPU
     """
     voices = {}
     for char, voice_file in character_voices.items():
@@ -33,12 +28,6 @@ def synthesize_dialogues(dialogues: list, voices: dict, output_dir: str,
                          syn_config: SynthesisConfig):
     """
     Generate WAV files for each dialogue line.
-
-    Args:
-        dialogues: list of dicts, each with keys: character, line, start, end
-        voices: dict of loaded PiperVoice objects
-        output_dir: folder to save WAV files
-        syn_config: Piper SynthesisConfig
     """
     ensure_dir(output_dir)
 
@@ -65,10 +54,10 @@ def synthesize_from_file(dialogue_file: str, character_voices: dict, voice_dir: 
                          output_dir: str, syn_config: SynthesisConfig = None,
                          use_cuda: bool = False):
     """
-    Load dialogues from JSON and synthesize audio for all lines dynamically.
-
+    Load dialogues from a JSON file and synthesize audio for all lines.
+    
     Args:
-        dialogue_file: JSON file containing dialogues
+        dialogue_file: JSON file containing `scene.dialogues`
         character_voices: dict mapping character names to voice files
         voice_dir: folder where voice files are stored
         output_dir: folder to save WAV files
@@ -76,17 +65,26 @@ def synthesize_from_file(dialogue_file: str, character_voices: dict, voice_dir: 
         use_cuda: whether to use GPU
     """
     if not os.path.exists(dialogue_file):
-        raise FileNotFoundError(f"Dialogue file not found: {dialogue_file}")
+        raise FileNotFoundError(f"JSON file not found: {dialogue_file}")
 
     with open(dialogue_file, "r", encoding="utf-8") as f:
-        dialogues = json.load(f)
+        data = json.load(f)
+    
+    # Extract dialogues from JSON structure
+    dialogues = data.get("scene", {}).get("dialogues", [])
+    if not dialogues:
+        print("[WARN] No dialogues found in JSON")
+        return
 
     if syn_config is None:
-        syn_config = SynthesisConfig(volume=1.0, length_scale=1.0,
-                                     noise_scale=0.6, noise_w_scale=0.6,
-                                     normalize_audio=True)
+        syn_config = SynthesisConfig(
+            volume=1.0,
+            length_scale=1.0,
+            noise_scale=0.6,
+            noise_w_scale=0.6,
+            normalize_audio=True
+        )
 
     voices = load_voices(character_voices, voice_dir, use_cuda)
     synthesize_dialogues(dialogues, voices, output_dir, syn_config)
-
     print(f"[ALL DONE] Audio saved in {output_dir}/")

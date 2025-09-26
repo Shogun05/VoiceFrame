@@ -1,242 +1,63 @@
-[
-  {
-    "character": "Zafir",
-    "start": "00:00:00",
-    "end": "00:00:07",
-    "line": "Another day, another opportunity to outwit that fool King Darius. Today, I shall become his most trusted advisor."
-  },
-  {
-    "character": "Narrator",
-    "start": "00:00:08",
-    "end": "00:00:15",
-    "line": "Deep in the palace gardens, Zafir hatched his most devious plan yet."
-  },
-  {
-    "character": "King Darius",
-    "start": "00:00:15",
-    "end": "00:00:22",
-    "line": "Zafir, my friend! Have you heard the news? A treasure map has been discovered in the old archives!"
-  },
-  {
-    "character": "Zafir",
-    "start": "00:00:23",
-    "end": "00:00:30",
-    "line": "A treasure map, Your Majesty? How fascinating! May I examine it?"
-  },
-  {
-    "character": "King Darius",
-    "start": "00:00:30",
-    "end": "00:00:37",
-    "line": "Of course! But I'm worried about my current advisor, Minister Aldric. He seems suspicious of everything I do."
-  },
-  {
-    "character": "Zafir",
-    "start": "00:00:38",
-    "end": "00:00:45",
-    "line": "Perhaps he doesn't have your best interests at heart, Your Majesty. A true advisor would encourage your noble quests."
-  },
-  {
-    "character": "Minister Aldric",
-    "start": "00:00:45",
-    "end": "00:00:52",
-    "line": "Your Majesty, I must warn you about this treasure map. It seems too convenient, too perfectly timed."
-  },
-  {
-    "character": "King Darius",
-    "start": "00:00:53",
-    "end": "00:01:00",
-    "line": "Nonsense, Aldric! Zafir here believes it's genuine. Don't you, Zafir?"
-  },
-  {
-    "character": "Zafir",
-    "start": "00:01:00",
-    "end": "00:01:07",
-    "line": "Indeed, Your Majesty. In fact, I've studied ancient cartography. This map shows clear signs of authenticity."
-  },
-  {
-    "character": "Minister Aldric",
-    "start": "00:01:08",
-    "end": "00:01:15",
-    "line": "Your Majesty, please reconsider. I sense deception in the air."
-  },
-  {
-    "character": "King Darius",
-    "start": "00:01:15",
-    "end": "00:01:22",
-    "line": "Aldric, your constant suspicion is wearing thin. Perhaps you need a vacation to clear your mind."
-  },
-  {
-    "character": "Zafir",
-    "start": "00:01:23",
-    "end": "00:01:30",
-    "line": "An excellent idea, Your Majesty. A wise ruler knows when to trust and when to act decisively."
-  },
-  {
-    "character": "Minister Aldric",
-    "start": "00:01:30",
-    "end": "00:01:37",
-    "line": "If you insist on following this map, at least let me accompany you for protection."
-  },
-  {
-    "character": "Zafir",
-    "start": "00:01:38",
-    "end": "00:01:45",
-    "line": "Actually, Your Majesty, wouldn't it be better if the Minister scouted ahead? To ensure the path is safe for royalty?"
-  },
-  {
-    "character": "King Darius",
-    "start": "00:01:45",
-    "end": "00:01:52",
-    "line": "Brilliant thinking, Zafir! Aldric, you shall go first and report back. Take this royal seal as proof of your mission."
-  },
-  {
-    "character": "Minister Aldric",
-    "start": "00:01:53",
-    "end": "00:02:00",
-    "line": "Your Majesty, I have a terrible feeling about this, but I shall obey your command."
-  },
-  {
-    "character": "Narrator",
-    "start": "00:02:00",
-    "end": "00:02:07",
-    "line": "Unknown to the Minister, Zafir had prepared several traps along the false treasure route."
-  },
-  {
-    "character": "Zafir",
-    "start": "00:02:08",
-    "end": "00:02:15",
-    "line": "Safe travels, my dear Minister. May you find exactly what you're looking for."
-  },
-  {
-    "character": "Minister Aldric",
-    "start": "00:02:15",
-    "end": "00:02:22",
-    "line": "This path seems treacherous. Wait... what is that sound? Is that... a rumbling?"
-  },
-  {
-    "character": "Sound Effects",
-    "start": "00:02:23",
-    "end": "00:02:30",
-    "line": "RUMBLE! CRASH! THUD!"
-  },
-  {
-    "character": "Minister Aldric",
-    "start": "00:02:30",
-    "end": "00:02:37",
-    "line": "Help! The bridge has collapsed! I'm trapped in this ravine!"
-  },
-  {
-    "character": "Zafir",
-    "start": "00:02:38",
-    "end": "00:02:45",
-    "line": "Oh my! Your Majesty, it seems there's been an unfortunate accident."
-  },
-  {
-    "character": "King Darius",
-    "start": "00:02:45",
-    "end": "00:02:52",
-    "line": "Poor Aldric! We must send a rescue party immediately!"
-  },
-  {
-    "character": "Zafir",
-    "start": "00:02:53",
-    "end": "00:03:00",
-    "line": "Of course, Your Majesty. But perhaps we should focus on the kingdom's immediate needs first. You'll need a new advisor."
-  },
-  {
-    "character": "King Darius",
-    "start": "00:03:00",
-    "end": "00:03:07",
-    "line": "You're absolutely right, Zafir. Your quick thinking and wisdom have impressed me greatly."
-  },
-  {
-    "character": "Zafir",
-    "start": "00:03:08",
-    "end": "00:03:15",
-    "line": "I live only to serve the crown, Your Majesty. Perhaps I could temporarily fill the advisory role?"
-  },
-  {
-    "character": "King Darius",
-    "start": "00:03:15",
-    "end": "00:03:22",
-    "line": "Temporarily? Nonsense! I hereby appoint you as my Chief Royal Advisor!"
-  },
-  {
-    "character": "Zafir",
-    "start": "00:03:23",
-    "end": "00:03:30",
-    "line": "Your Majesty honors me beyond measure. I shall dedicate my life to your service."
-  },
-  {
-    "character": "Palace Guard",
-    "start": "00:03:30",
-    "end": "00:03:37",
-    "line": "Your Majesty! We've rescued Minister Aldric! He claims the treasure map was a fake!"
-  },
-  {
-    "character": "Zafir",
-    "start": "00:03:38",
-    "end": "00:03:45",
-    "line": "Poor fellow must have hit his head in the fall. Accidents can cause such delusions."
-  },
-  {
-    "character": "Minister Aldric",
-    "start": "00:03:45",
-    "end": "00:03:52",
-    "line": "Your Majesty! Zafir orchestrated this entire scheme! The map, the traps, everything!"
-  },
-  {
-    "character": "King Darius",
-    "start": "00:03:53",
-    "end": "00:04:00",
-    "line": "Aldric, you're clearly suffering from your ordeal. You need rest and medical attention."
-  },
-  {
-    "character": "Zafir",
-    "start": "00:04:00",
-    "end": "00:04:07",
-    "line": "Your Majesty's compassion knows no bounds. Perhaps the former advisor should retire to the countryside for his health."
-  },
-  {
-    "character": "King Darius",
-    "start": "00:04:08",
-    "end": "00:04:15",
-    "line": "An excellent suggestion, my trusted advisor. Guards, escort Aldric to a comfortable retirement."
-  },
-  {
-    "character": "Minister Aldric",
-    "start": "00:04:15",
-    "end": "00:04:22",
-    "line": "This is not over, Zafir! The truth will come to light someday!"
-  },
-  {
-    "character": "Zafir",
-    "start": "00:04:23",
-    "end": "00:04:30",
-    "line": "Rest well, old friend. Your years of service are appreciated."
-  },
-  {
-    "character": "King Darius",
-    "start": "00:04:30",
-    "end": "00:04:37",
-    "line": "Now, my dear Zafir, what should be our first order of business?"
-  },
-  {
-    "character": "Zafir",
-    "start": "00:04:38",
-    "end": "00:04:45",
-    "line": "Perhaps we should strengthen the kingdom's defenses, Your Majesty. One can never be too careful about potential threats."
-  },
-  {
-    "character": "Zafir",
-    "start": "00:04:45",
-    "end": "00:04:52",
-    "line": "And so, another masterful plan comes to fruition. The kingdom is now mine to influence as I see fit."
-  },
-  {
-    "character": "Narrator",
-    "start": "00:04:53",
-    "end": "00:05:00",
-    "line": "Thus, through cunning and deception, Zafir achieved his goal, though his victory would bring new challenges."
+{
+  "scene": {
+    "background": {
+      "description": "A vibrant, sun-drenched riverbank teeming with tall green reeds gives way to a wide, gently flowing river under a clear blue sky. A ancient, moss-covered tree stump sits at the edge of the water.",
+      "start": "00:00:00",
+      "end": "00:01:30"
+    },
+    "characters": [
+      {
+        "name": "Frog",
+        "appearance": "A plump, emerald-green frog with prominent golden eyes, smooth, wet-looking skin, and broad webbed feet, poised near the river's edge."
+      },
+      {
+        "name": "Scorpion",
+        "appearance": "A compact, charcoal-black scorpion with a glossy, segmented exoskeleton, sharp, articulated pincers, and a deadly, segmented tail arcing over its back, tipped with a glistening stinger."
+      }
+    ],
+    "dialogues": [
+      {
+        "character": "Scorpion",
+        "start": "00:00:05",
+        "end": "00:00:15",
+        "line": "Oh, noble Frog, I beg your assistance! This vast river blocks my path, and I, a creature of the land, cannot swim. Would you ferry me across?"
+      },
+      {
+        "character": "Frog",
+        "start": "00:00:18",
+        "end": "00:00:28",
+        "line": "A scorpion? On my back? Are you daft? You will surely sting me, and then we both shall drown in the depths of this river!"
+      },
+      {
+        "character": "Scorpion",
+        "start": "00:00:31",
+        "end": "00:00:46",
+        "line": "Preposterous, my friend! Consider the logic. If I sting you, my ride, we both perish. My survival is entirely dependent on yours. Why would I jeopardize us both?"
+      },
+      {
+        "character": "Frog",
+        "start": "00:00:49",
+        "end": "00:00:54",
+        "line": "Your words, though chilling, hold a grim truth. Very well, climb aboard, but make no sudden movements!"
+      },
+      {
+        "character": "Scorpion",
+        "start": "00:00:57",
+        "end": "00:01:03",
+        "line": "A thousand thanks, kind Frog! You shall not regret this act of unparalleled generosity."
+      },
+      {
+        "character": "Frog",
+        "start": "00:01:07",
+        "end": "00:01:10",
+        "line": "(yelping, a sharp pain in its back) Why? Why did you sting me, despite your promise?"
+      },
+      {
+        "character": "Scorpion",
+        "start": "00:01:13",
+        "end": "00:01:25",
+        "line": "I... I couldn't help myself. It is simply my nature. Now, we both face the inevitable. Forgive me, if you can, for what I truly am."
+      }
+    ]
   }
-]
+}

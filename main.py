@@ -1,15 +1,15 @@
 from voice_generation import synthesize_from_file, SynthesisConfig
 
 dialogues_file = "dialogues.json"
-voice_dir = "voices" # Directory containing .onnx voice files
+voice_dir = "voices" 
 output_dir = "output_audio"
 
 # Flexible character-to-voice mapping
 character_voices = {
-    "Zafir": "en_US-john-medium.onnx",
-    "Narrator": "en_US-hfc_male-medium.onnx",
-    "King Darius": "en_US-arctic-medium.onnx",
-    "Minister Aldric": "en_US-bryce-medium.onnx"
+    "Frog": "en_US-john-medium.onnx",
+    "Scorpion": "en_US-hfc_male-medium.onnx",
+    # "King Darius": "en_US-arctic-medium.onnx",
+    # "Minister Aldric": "en_US-bryce-medium.onnx"
 }
 
 # Custom synthesis config

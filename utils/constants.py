@@ -71,10 +71,7 @@ MULTIPLE_TAGS = {'2girls', '3girls', '4girls', '5girls', '6+girls', 'multiple_gi
 '2boys', '3boys', '4boys', '5boys', '6+boys', 'multiple_boys',
 '2others', '3others', '4others', '5others', '6+others', 'multiple_others'}
 
-if hasattr(torch, 'cuda'):
-    DEFAULT_DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
-else:
-    DEFAULT_DEVICE = 'cpu'
+DEFAULT_DEVICE = 'cpu'
 
 DEFAULT_DETECTOR_CKPT = 'models/AnimeInstanceSegmentation/rtmdetl_e60.ckpt'
 DEFAULT_DEPTHREFINE_CKPT = 'models/AnimeInstanceSegmentation/kenburns_depth_refinenet.ckpt'

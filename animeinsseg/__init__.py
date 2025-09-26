@@ -189,8 +189,8 @@ class AnimeInsSeg:
                  tagger_path: str = 'models/wd-v1-4-swinv2-tagger-v2/model.onnx', mask_thr=0.3) -> None:
         self.ckpt = ckpt
         self.default_det_size = default_det_size
-        self.device = DEFAULT_DEVICE if device is None else device
-
+        # self.device = DEFAULT_DEVICE if device is None else device
+        self.device = 'cpu'
         # init detector in mmdet's way
 
         ckpt = torch.load(ckpt, map_location='cpu')

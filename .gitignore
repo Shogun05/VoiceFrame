@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*.class
+*.so
+.Python
+env/
+venv/
+animeinsseg_env/
+mmcv_env/
+
+# Models (large files)
+models/
+*.ckpt
+*.pt
+*.pth
+
+# Output directories
+images/
+output/
+workspace/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Gradio cache
+flagged/

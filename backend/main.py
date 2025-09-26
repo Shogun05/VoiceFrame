@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Response
+from fastapi import FastAPI, Response, WebSocket, WebSocketDisconnect
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 import os
@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from dotenv import load_dotenv
 from invoke import InvokeClient
 from gemini_client import GeminiClient
+import asyncio
 
 # Load environment variables from .env file
 load_dotenv()
@@ -182,62 +183,88 @@ def generate_video_stream():
                 break
             yield chunk
 
-@app.get("/video")
-#request: VideoRequest 
-async def create_video_endpoint():
-    request = {"prompt": "Story of frog and scorpion"}
-    print(f"Received request for /video with prompt: {request['prompt']}")
-
+@app.websocket("/ws/progress")
+async def websocket_progress(websocket: WebSocket):
+    await websocket.accept()
+    print("Client connected!")
+    
     try:
-        # 1. Clean up previous run
+        # Wait for the prompt from the frontend
+        await websocket.send_json({"status": "Waiting for prompt..."})
+        prompt_message = await websocket.receive_json()
+        
+        if "prompt" not in prompt_message:
+            await websocket.send_json({"status": "error", "message": "No prompt provided"})
+            return
+        
+        prompt = prompt_message["prompt"]
+        print(f"Received prompt from frontend: {prompt}")
+        
+        if not prompt or prompt.strip() == "":
+            await websocket.send_json({"status": "error", "message": "Empty prompt provided"})
+            return
+        
+        # Step 1: Cleanup
+        await websocket.send_json({"status": "Cleaning up previous files"})
         cleanup_directories()
-
-        # 2. Use Gemini to get a structured JSON script
-        print("Asking Gemini for a script...")
-        # Add stable diffusion optimization to the prompt
-        optimized_prompt = f"Create a scene with characters optimized for stable diffusion image generation. {request['prompt']}"
+        
+        # Step 2: Generate script with Gemini
+        await websocket.send_json({"status": "Generating script with AI"})
+        optimized_prompt = f"Create a scene with characters optimized for stable diffusion image generation. Story about: {prompt}"
         gemini_result = gemini_client.ask(optimized_prompt)
         
         print("Received from Gemini:")
         print(gemini_result)
-
-        if "error" in gemini_result:
-            return Response(content=f"Failed to get valid JSON from Gemini: {gemini_result['raw_output']}", status_code=500)
-
-        # 3. Generate images and audio from the Gemini script
-        print("Generating images and audio based on Gemini script...")
-        await generate_images_from_scene(gemini_result)
-        # TODO: Generate audio files from dialogues
-
-        # 4. Generate the video from the created files
-        generate_video_from_images_and_audio()
-
-        # 5. Stream the video
-        video_path = os.path.join(BASE_DIR, "video.mp4")
-        if not os.path.exists(video_path):
-            return Response(status_code=404, content="Video file not found after generation. This might happen if image/audio generation is not implemented or fails.")
         
-        print("Streaming video...")
-        return StreamingResponse(generate_video_stream(), media_type="video/mp4")
-
+        if "error" in gemini_result:
+            await websocket.send_json({"status": "error", "message": f"Failed to get valid script: {gemini_result['raw_output']}"})
+            return
+        
+        # Step 3: Generate images
+        await websocket.send_json({"status": "Generating characters and background images"})
+        await generate_images_from_scene(gemini_result)
+        
+        # Step 4: Generate audio (placeholder for now)
+        await websocket.send_json({"status": "Generating voice audio"})
+        # TODO: Implement actual audio generation
+        
+        # Step 5: Combine into video
+        await websocket.send_json({"status": "Combining into final video"})
+        generate_video_from_images_and_audio()
+        video_path = os.path.join(BASE_DIR, "video.mp4")
+        
+        if not os.path.exists(video_path):
+            await websocket.send_json({"status": "error", "message": "Video generation failed - file not found"})
+            return
+        
+        # Generate unique video ID (use timestamp for now)
+        import time
+        video_id = f"video_{int(time.time())}"
+        
+        # Send completion with video_id
+        await websocket.send_json({"status": "done", "video_id": video_id})
+        print(f"Video generation completed! video_id: {video_id}")
+        
+    except WebSocketDisconnect:
+        print("Client disconnected")
     except Exception as e:
-        print(f"An error occurred during the process: {e}")
-        return Response(content=f"An error occurred: {str(e)}", status_code=500)
-    
-@app.get("/image")
-async def get_image():
-    # Create client with background and character prompts
-    client = InvokeClient(
-        background_prompt="sunny meadow with flowers and trees, peaceful landscape",
-        character_prompts=[
-            "cute rabbit sitting and eating a carrot",
-            "colorful butterfly flying"
-        ] 
-    )
-    # Generate the complete scene
-    final_image = client.generate_complete_scene()
+        print(f"Error during video generation: {e}")
+        try:
+            await websocket.send_json({"status": "error", "message": f"Generation failed: {str(e)}"})
+        except:
+            pass  # Connection might be closed
 
-    # Save or use the PIL Image
-    if final_image:
-        final_image.save("my_scene.png")
-        final_image.show()  # Display the image
+@app.get("/video/{video_id}")
+async def stream_video(video_id: str):
+    """Stream the generated video by video_id"""
+    print(f"Streaming video for video_id: {video_id}")
+    
+    # In production, you'd map video_id to actual file paths
+    # For now, we'll serve the generated video.mp4
+    video_path = os.path.join(BASE_DIR, "video.mp4")
+    
+    if not os.path.exists(video_path):
+        return Response(status_code=404, content="Video not found")
+    
+    print(f"Streaming video from: {video_path}")
+    return StreamingResponse(generate_video_stream(), media_type="video/mp4")

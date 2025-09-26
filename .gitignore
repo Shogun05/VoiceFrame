@@ -1,6 +1,7 @@
 venv/
 backend/__pycache__/
 backend/.env
+backend/voices/
 .vscode
 
 frontend-app/node_modules/

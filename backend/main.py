@@ -7,7 +7,7 @@ from pydantic import BaseModel
 from dotenv import load_dotenv
 from invoke import InvokeClient
 from gemini_client import GeminiClient
-from video_gen import generate_video_from_scene_data
+from video_gen import generate_video_from_scene_data, SPEECH_BUBBLE_CONFIGS
 from voice_generation import VoiceSynthesizer
 
 # Load environment variables from .env file
@@ -235,11 +235,40 @@ async def websocket_progress(websocket: WebSocket):
         else:
             print("Audio directory not found - video will be generated without audio")
         
-        # Use the new video_gen module with detailed logging
+        # Use the new video_gen module with improved speech bubbles
         print("Starting video generation with scene data and audio files...")
         print(f"Scene data contains {len(scene_data.get('scene', {}).get('dialogues', []))} dialogues")
         
-        success = generate_video_from_scene_data(BASE_DIR, scene_data)
+        # Generate dynamic character positions based on actual characters from Gemini
+        scene_info = scene_data.get('scene', {})
+        characters = scene_info.get('characters', [])
+        
+        # Create character positions dynamically
+        character_positions = {}
+        sides = ["left", "right"]  # Alternate between left and right
+        
+        for i, character in enumerate(characters):
+            char_name = character.get('name', f'Character_{i+1}')
+            side = sides[i % len(sides)]  # Alternate sides
+            
+            character_positions[char_name] = {
+                "side": side,
+                "max_width": 450,  # Use modern bubble width
+                "tail_side": side  # Tail points in same direction as position
+            }
+        
+        # Use modern_bubbles config as default (best looking)
+        bubble_config = SPEECH_BUBBLE_CONFIGS.get("modern_bubbles", {})
+        
+        print(f"Generated character positions: {list(character_positions.keys())}")
+        print(f"Using speech bubble config: modern_bubbles")
+        
+        success = generate_video_from_scene_data(
+            BASE_DIR, 
+            scene_data, 
+            character_positions=character_positions
+        )
+        
         if not success:
             await websocket.send_json({"status": "error", "message": "Video generation failed"})
             return

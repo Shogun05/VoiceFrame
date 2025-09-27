@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -6,8 +6,8 @@ import {
   SafeAreaView,
   TouchableOpacity,
   Dimensions,
+  ScrollView,
 } from 'react-native';
-// import PagerView from 'react-native-pager-view';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { Sparkles, Video, Download, ArrowRight } from 'lucide-react-native';
@@ -48,6 +48,7 @@ export default function WelcomeScreen() {
   const { theme } = useTheme();
   const router = useRouter();
   const [currentPage, setCurrentPage] = useState(0);
+  const scrollViewRef = useRef<ScrollView>(null);
 
   const handleComplete = async () => {
     try {
@@ -65,9 +66,19 @@ export default function WelcomeScreen() {
 
   const handleNext = () => {
     if (currentPage < onboardingData.length - 1) {
-      setCurrentPage(currentPage + 1);
+      const nextPage = currentPage + 1;
+      setCurrentPage(nextPage);
+      scrollViewRef.current?.scrollTo({ x: nextPage * width, animated: true });
     } else {
       handleComplete();
+    }
+  };
+
+  const handleScroll = (event: any) => {
+    const slideSize = event.nativeEvent.layoutMeasurement.width;
+    const currentIndex = Math.floor(event.nativeEvent.contentOffset.x / slideSize);
+    if (currentIndex !== currentPage) {
+      setCurrentPage(currentIndex);
     }
   };
 
@@ -87,13 +98,18 @@ export default function WelcomeScreen() {
         </View>
       </LinearGradient>
 
-      <PagerView
+      <ScrollView
+        ref={scrollViewRef}
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
         style={styles.pagerView}
-        initialPage={0}
-        onPageSelected={(e) => setCurrentPage(e.nativeEvent.position)}
+        contentContainerStyle={{ flexDirection: 'row' }}
       >
         {onboardingData.map((item, index) => (
-          <View key={index} style={styles.page}>
+          <View key={index} style={[styles.page, { width }]}>
             <View style={styles.iconContainer}>
               <item.icon size={64} color={theme.primary} />
             </View>
@@ -111,7 +127,7 @@ export default function WelcomeScreen() {
             </Text>
           </View>
         ))}
-      </PagerView>
+      </ScrollView>
 
       <View style={styles.footer}>
         {/* Page Indicators */}

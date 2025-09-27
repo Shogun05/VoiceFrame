@@ -49,11 +49,14 @@ export default function HomeScreen() {
       await new Promise(resolve => setTimeout(resolve, 2000));
       
       // For now, always return success and navigate to video
-      showToast('Story generated successfully!', 'success');
+      showToast('Generating a beautiful story...', 'success');
       
-      // Navigate to video screen after short delay
+      // Navigate to video screen with the prompt parameter
       setTimeout(() => {
-        router.push('/video');
+        router.push({
+          pathname: '/video',
+          params: { prompt: storyPrompt.trim() }
+        });
       }, 1000);
     } catch (error) {
       showToast('Failed to generate story', 'error');

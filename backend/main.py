@@ -67,8 +67,8 @@ def cleanup_directories():
 
 # Old video generation function removed - now handled by video_gen module
 
-async def generate_images_from_scene(gemini_result):
-    """Generate images based on the Gemini scene data"""
+async def generate_images_from_scene(gemini_result, websocket=None):
+    """Generate images based on the Gemini scene data with progress updates"""
     print("Starting image generation from scene data...")
     
     # Create images directory
@@ -83,6 +83,9 @@ async def generate_images_from_scene(gemini_result):
         print(f"Background description: {background_desc}")
         print(f"Characters: {[char.get('name', 'Unknown') for char in characters]}")
         
+        if websocket:
+            await websocket.send_json({"status": "Setting up image generation"})
+        
         if background_desc and characters:
             # Extract character prompts (just appearances)
             character_prompts = []
@@ -93,15 +96,34 @@ async def generate_images_from_scene(gemini_result):
             
             print(f"Character prompts: {character_prompts}")
             
+            if websocket:
+                await websocket.send_json({"status": "Creating AI image prompts"})
+            
             # Create InvokeClient with background and character prompts
             client = InvokeClient(
                 background_prompt=background_desc,
                 character_prompts=character_prompts
             )
             
+            if websocket:
+                await websocket.send_json({"status": "Generating scene with Stable Diffusion"})
+            
             # Generate the complete scene
             print("Generating complete scene with InvokeClient...")
-            final_image = client.generate_complete_scene()
+            
+            # Run the image generation in a thread to avoid blocking
+            import asyncio
+            import concurrent.futures
+            
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(client.generate_complete_scene)
+                
+                # Send progress updates while waiting for completion
+                while not future.done():
+                    pass
+                
+                # Wait for the image generation to complete (equivalent to thread.join())
+                final_image = future.result(timeout=300)  # 5 minute timeout
             
             if final_image:
                 # Save the generated image as 1.jpeg in the images folder
@@ -151,13 +173,12 @@ async def websocket_progress(websocket: WebSocket):
         if not prompt or prompt.strip() == "":
             await websocket.send_json({"status": "error", "message": "Empty prompt provided"})
             return
-        
+
         # Step 1: Cleanup
-        await websocket.send_json({"status": "Cleaning up previous files"})
         cleanup_directories()
         
-        # Step 2: Generate script with Gemini
         await websocket.send_json({"status": "Generating script with AI"})
+        
         optimized_prompt = f"Create a scene with characters optimized for stable diffusion image generation. Story about: {prompt}"
         gemini_result = gemini_client.ask(optimized_prompt)
         
@@ -170,11 +191,14 @@ async def websocket_progress(websocket: WebSocket):
         
         # Step 3: Generate images
         await websocket.send_json({"status": "Generating characters and background images"})
-        scene_data = await generate_images_from_scene(gemini_result)
+        
+        scene_data = await generate_images_from_scene(gemini_result, websocket)
         
         if not scene_data:
             await websocket.send_json({"status": "error", "message": "Failed to generate images"})
             return
+        
+        await websocket.send_json({"status": "Images generated successfully"})
         
         # Step 4: Generate voice audio
         await websocket.send_json({"status": "Generating voice audio"})
@@ -203,13 +227,24 @@ async def websocket_progress(websocket: WebSocket):
                 
                 if dialogues and characters:
                     print(f"Synthesizing {len(dialogues)} dialogue lines for {len(characters)} characters")
-                    synthesizer.synthesize_dialogues(dialogues, characters)
+                    
+                    # Run voice synthesis in a thread to allow progress updates
+                    import asyncio
+                    import concurrent.futures
+                    
+                    with concurrent.futures.ThreadPoolExecutor() as executor:
+                        voice_future = executor.submit(synthesizer.synthesize_dialogues, dialogues, characters)
+                        
+                        # Wait for voice synthesis to complete (equivalent to thread.join())
+                        voice_future.result(timeout=120)  # 2 minute timeout
                     
                     # Verify audio files were created
                     audio_files = [f for f in os.listdir(audio_dir) if f.endswith('.wav')]
                     print(f"Created {len(audio_files)} audio files: {audio_files}")
+                    await websocket.send_json({"status": "Voice synthesis completed successfully"})
                     print("Voice synthesis completed successfully")
                 else:
+                    await websocket.send_json({"status": "No dialogues found, continuing without audio"})
                     print("No dialogues or characters found for voice synthesis")
             else:
                 print(f"Voice directory not found at {voice_dir}, skipping voice synthesis")
@@ -263,11 +298,20 @@ async def websocket_progress(websocket: WebSocket):
         print(f"Generated character positions: {list(character_positions.keys())}")
         print(f"Using speech bubble config: modern_bubbles")
         
-        success = generate_video_from_scene_data(
-            BASE_DIR, 
-            scene_data, 
-            character_positions=character_positions
-        )
+        # Run video generation in a thread
+        import asyncio
+        import concurrent.futures
+        
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            video_future = executor.submit(
+                generate_video_from_scene_data,
+                BASE_DIR, 
+                scene_data, 
+                character_positions
+            )
+            
+            # Wait for video generation to complete (equivalent to thread.join())
+            success = video_future.result(timeout=600)  # 10 minute timeout for video generation
         
         if not success:
             await websocket.send_json({"status": "error", "message": "Video generation failed"})

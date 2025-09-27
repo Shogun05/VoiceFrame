@@ -10,7 +10,7 @@ from typing import Dict, List, Optional, Tuple
 from PIL import Image, ImageDraw, ImageFont
 
 # Import moviepy v2.x modules (no ImageMagick dependency needed)
-from moviepy import ImageClip, CompositeVideoClip, ColorClip, AudioFileClip, CompositeAudioClip
+from moviepy import ImageClip, CompositeVideoClip, AudioFileClip, CompositeAudioClip
 from moviepy import vfx
 
 
@@ -503,9 +503,28 @@ class VoiceFrameVideoGenerator:
                         # Adjust audio duration to match expected timing
                         if abs(actual_duration - expected_duration) > 0.1:  # If difference > 0.1 seconds
                             if actual_duration > expected_duration:
-                                # Audio is too long - trim it using MoviePy 2.x API
-                                audio_clip = audio_clip.with_duration(expected_duration)
-                                print(f"  Trimmed audio to {expected_duration:.2f}s")
+                                # Audio is too long - speed it up to fit the time slot
+                                speed_factor = (actual_duration / expected_duration) + 0.05  # Add 0.05 buffer
+                                print(f"  Audio is {actual_duration:.2f}s, expected {expected_duration:.2f}s")
+                                print(f"  Speeding up audio by factor of {speed_factor:.3f}")
+                                
+                                # Apply speed change and save back to original file
+                                sped_up_audio = audio_clip.with_effects([vfx.MultiplySpeed(speed_factor)])
+                                
+                                # Save the sped-up audio back to the original file  
+                                temp_audio_path = audio_file.replace('.wav', '_temp.wav')
+                                sped_up_audio.write_audiofile(temp_audio_path, verbose=False, logger=None)
+                                
+                                # Replace original file with sped-up version
+                                import shutil
+                                shutil.move(temp_audio_path, audio_file)
+                                
+                                # Reload the audio clip with the new sped-up version
+                                audio_clip.close()
+                                audio_clip = AudioFileClip(audio_file)
+                                sped_up_audio.close()
+                                
+                                print(f"  Saved sped-up audio to {audio_file}, new duration: {audio_clip.duration:.2f}s")
                             else:
                                 # Audio is too short - pad with silence
                                 silence_duration = expected_duration - actual_duration

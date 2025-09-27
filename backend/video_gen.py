@@ -6,7 +6,7 @@ Uses PIL and OpenCV instead of ImageMagick for better compatibility
 
 import os
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 from PIL import Image, ImageDraw, ImageFont
 
 # Import moviepy v2.x modules (no ImageMagick dependency needed)
@@ -14,9 +14,9 @@ from moviepy import ImageClip, CompositeVideoClip, ColorClip, AudioFileClip, Com
 from moviepy import vfx
 
 
-class TextRenderer:
+class ImprovedTextRenderer:
     """
-    Custom text renderer using PIL instead of ImageMagick
+    Improved text renderer with speech bubble styling and better text alignment
     """
     
     def __init__(self, font_size: int = 20, font_color: str = 'gold'):
@@ -38,39 +38,30 @@ class TextRenderer:
                 return path
         return None
     
-    def create_text_image(self, text: str, max_width: int, bg_color: tuple = (0, 0, 0, 200),
-                         border_color: tuple = (218, 165, 32, 255)) -> Image.Image:
-        """
-        Create a text image with background and border using PIL
-        
-        Args:
-            text: Text to render
-            max_width: Maximum width for text wrapping
-            bg_color: Background color (R, G, B, A)
-            border_color: Border color (R, G, B, A)
-        
-        Returns:
-            PIL Image with text and background
-        """
-        # Try to load font
+    def _get_text_dimensions(self, text: str, font) -> Tuple[int, int]:
+        """Get accurate text dimensions using textbbox"""
         try:
-            if self.font_path:
-                font = ImageFont.truetype(self.font_path, self.font_size)
-            else:
-                font = ImageFont.load_default()
-        except:
-            font = ImageFont.load_default()
-        
-        # Word wrap text
+            # Use textbbox for more accurate measurements (PIL 8.0.0+)
+            bbox = font.getbbox(text)
+            width = bbox[2] - bbox[0]
+            height = bbox[3] - bbox[1]
+            return width, height
+        except AttributeError:
+            # Fallback for older PIL versions
+            width, height = font.getsize(text)
+            return width, height
+    
+    def _wrap_text(self, text: str, font, max_width: int) -> list:
+        """Wrap text to fit within max_width with accurate measurements"""
         words = text.split()
         lines = []
         current_line = ""
         
         for word in words:
             test_line = current_line + " " + word if current_line else word
-            # Estimate line width
-            line_width = len(test_line) * (self.font_size * 0.6)
-            if line_width <= max_width:
+            text_width, _ = self._get_text_dimensions(test_line, font)
+            
+            if text_width <= max_width:
                 current_line = test_line
             else:
                 if current_line:
@@ -80,37 +71,167 @@ class TextRenderer:
         if current_line:
             lines.append(current_line)
         
-        # Calculate dimensions
-        line_height = self.font_size + 8
-        text_height = len(lines) * line_height + 10
-        text_width = max(len(line) * (self.font_size * 0.6) for line in lines) + 20
-        text_width = min(text_width, max_width)
+        return lines
+    
+    def create_speech_bubble(self, text: str, max_width: int, 
+                           bg_color: tuple = (0, 0, 0, 220),
+                           border_color: tuple = (218, 165, 32, 255),
+                           padding: int = 15,
+                           corner_radius: int = 15,
+                           add_tail: bool = True,
+                           tail_side: str = "left") -> Image.Image:
+        """
+        Create a speech bubble-style text image
         
-        # Add padding
-        padding = 20
-        img_width = int(text_width + padding * 2)
-        img_height = int(text_height + padding * 2)
+        Args:
+            text: Text to render
+            max_width: Maximum width for text wrapping
+            bg_color: Background color (R, G, B, A)
+            border_color: Border color (R, G, B, A)  
+            padding: Internal padding around text
+            corner_radius: Radius for rounded corners
+            add_tail: Whether to add speech bubble tail
+            tail_side: Which side to add tail ("left" or "right")
+        
+        Returns:
+            PIL Image with speech bubble and text
+        """
+        # Load font
+        try:
+            if self.font_path:
+                font = ImageFont.truetype(self.font_path, self.font_size)
+            else:
+                font = ImageFont.load_default()
+        except:
+            font = ImageFont.load_default()
+        
+        # Wrap text with accurate measurements
+        content_width = max_width - (2 * padding)
+        lines = self._wrap_text(text, font, content_width)
+        
+        # Calculate actual text dimensions
+        line_height = self.font_size + 4  # Reduced line spacing
+        text_height = len(lines) * line_height
+        
+        # Find the actual width needed (not max_width)
+        actual_text_width = 0
+        for line in lines:
+            line_width, _ = self._get_text_dimensions(line, font)
+            actual_text_width = max(actual_text_width, line_width)
+        
+        # Calculate bubble dimensions based on actual text size
+        bubble_width = actual_text_width + (2 * padding)
+        bubble_height = text_height + (2 * padding)
+        
+        # Add space for tail if needed
+        tail_height = 20
+        tail_width = 15
+        
+        if add_tail:
+            img_width = bubble_width + tail_width
+            img_height = bubble_height + tail_height
+        else:
+            img_width = bubble_width
+            img_height = bubble_height
         
         # Create image with transparent background
         img = Image.new('RGBA', (img_width, img_height), (0, 0, 0, 0))
         draw = ImageDraw.Draw(img)
         
-        # Draw background rectangle
-        draw.rectangle([5, 5, img_width-5, img_height-5], fill=bg_color, outline=border_color, width=3)
+        # Calculate bubble position
+        if add_tail and tail_side == "right":
+            bubble_x = 0
+        else:
+            bubble_x = tail_width if add_tail else 0
+            
+        bubble_y = 0
         
-        # Draw text
-        y_offset = padding
+        # Draw rounded rectangle for speech bubble
+        self._draw_rounded_rectangle(
+            draw, 
+            [bubble_x, bubble_y, bubble_x + bubble_width, bubble_y + bubble_height],
+            corner_radius, 
+            fill=bg_color, 
+            outline=border_color,
+            width=2
+        )
+        
+        # Draw speech bubble tail
+        if add_tail:
+            self._draw_speech_tail(draw, bubble_x, bubble_y, bubble_width, bubble_height, 
+                                 tail_side, bg_color, border_color)
+        
+        # Draw text centered in bubble
         text_color = self._parse_color(self.font_color)
+        y_offset = bubble_y + padding
         
         for line in lines:
-            # Center text horizontally
-            line_width = len(line) * (self.font_size * 0.6)
-            x_offset = (img_width - line_width) // 2
+            line_width, _ = self._get_text_dimensions(line, font)
+            # Center each line horizontally
+            x_offset = bubble_x + padding + (actual_text_width - line_width) // 2
             
             draw.text((x_offset, y_offset), line, font=font, fill=text_color)
             y_offset += line_height
         
         return img
+    
+    def _draw_rounded_rectangle(self, draw, coords, radius, fill=None, outline=None, width=1):
+        """Draw a rounded rectangle"""
+        x1, y1, x2, y2 = coords
+        
+        # Draw the main rectangle
+        draw.rectangle([x1 + radius, y1, x2 - radius, y2], fill=fill)
+        draw.rectangle([x1, y1 + radius, x2, y2 - radius], fill=fill)
+        
+        # Draw corners
+        draw.pieslice([x1, y1, x1 + 2*radius, y1 + 2*radius], 180, 270, fill=fill)
+        draw.pieslice([x2 - 2*radius, y1, x2, y1 + 2*radius], 270, 360, fill=fill)
+        draw.pieslice([x1, y2 - 2*radius, x1 + 2*radius, y2], 90, 180, fill=fill)
+        draw.pieslice([x2 - 2*radius, y2 - 2*radius, x2, y2], 0, 90, fill=fill)
+        
+        # Draw outline if specified
+        if outline:
+            # Main rectangle outlines
+            draw.rectangle([x1 + radius, y1, x2 - radius, y1 + width], fill=outline)  # top
+            draw.rectangle([x1 + radius, y2 - width, x2 - radius, y2], fill=outline)  # bottom
+            draw.rectangle([x1, y1 + radius, x1 + width, y2 - radius], fill=outline)  # left
+            draw.rectangle([x2 - width, y1 + radius, x2, y2 - radius], fill=outline)  # right
+            
+            # Corner outlines
+            draw.arc([x1, y1, x1 + 2*radius, y1 + 2*radius], 180, 270, fill=outline, width=width)
+            draw.arc([x2 - 2*radius, y1, x2, y1 + 2*radius], 270, 360, fill=outline, width=width)
+            draw.arc([x1, y2 - 2*radius, x1 + 2*radius, y2], 90, 180, fill=outline, width=width)
+            draw.arc([x2 - 2*radius, y2 - 2*radius, x2, y2], 0, 90, fill=outline, width=width)
+    
+    def _draw_speech_tail(self, draw, bubble_x, bubble_y, bubble_width, bubble_height, 
+                         tail_side, bg_color, border_color):
+        """Draw speech bubble tail"""
+        tail_height = 20
+        tail_width = 15
+        
+        if tail_side == "left":
+            # Tail pointing left
+            tail_points = [
+                (bubble_x, bubble_y + bubble_height - 30),  # Top of tail
+                (bubble_x - tail_width, bubble_y + bubble_height - 10),  # Tip of tail
+                (bubble_x, bubble_y + bubble_height - 10)   # Bottom of tail
+            ]
+        else:  # right
+            # Tail pointing right
+            tail_points = [
+                (bubble_x + bubble_width, bubble_y + bubble_height - 30),  # Top of tail
+                (bubble_x + bubble_width + tail_width, bubble_y + bubble_height - 10),  # Tip of tail
+                (bubble_x + bubble_width, bubble_y + bubble_height - 10)   # Bottom of tail
+            ]
+        
+        # Draw filled tail
+        draw.polygon(tail_points, fill=bg_color)
+        
+        # Draw tail outline
+        for i in range(len(tail_points)):
+            start = tail_points[i]
+            end = tail_points[(i + 1) % len(tail_points)]
+            draw.line([start, end], fill=border_color, width=2)
     
     def _parse_color(self, color_str: str) -> tuple:
         """Parse color string to RGB tuple"""
@@ -121,9 +242,45 @@ class TextRenderer:
             'red': (255, 0, 0, 255),
             'green': (0, 255, 0, 255),
             'blue': (0, 0, 255, 255),
+            'cyan': (0, 255, 255, 255),
+            'orange': (255, 165, 0, 255),
+            'purple': (128, 0, 128, 255),
         }
         return color_map.get(color_str.lower(), (255, 215, 0, 255))
 
+# Updated configuration for speech bubbles
+SPEECH_BUBBLE_CONFIGS = {
+    "classic_bubbles": {
+        "font_size": 22,
+        "font_color": "white",
+        "padding": 12,
+        "corner_radius": 18,
+        "character_positions": {
+            "Scorpion": {"side": "left", "max_width": 400, "tail_side": "left"},
+            "Frog": {"side": "right", "max_width": 400, "tail_side": "right"}
+        }
+    },
+    "modern_bubbles": {
+        "font_size": 20,
+        "font_color": "gold",
+        "padding": 15,
+        "corner_radius": 20,
+        "character_positions": {
+            "Scorpion": {"side": "left", "max_width": 450, "tail_side": "left"},
+            "Frog": {"side": "right", "max_width": 450, "tail_side": "right"}
+        }
+    },
+    "compact_bubbles": {
+        "font_size": 18,
+        "font_color": "white",
+        "padding": 10,
+        "corner_radius": 15,
+        "character_positions": {
+            "Scorpion": {"side": "left", "max_width": 350, "tail_side": "left"},
+            "Frog": {"side": "right", "max_width": 350, "tail_side": "right"}
+        }
+    }
+}
 
 class VoiceFrameVideoGenerator:
     """
@@ -142,7 +299,7 @@ class VoiceFrameVideoGenerator:
         self.images_dir = self.base_dir / 'images'
         self.audio_dir = self.base_dir / 'audio'
         self.output_path = self.base_dir / 'video.mp4'
-        self.text_renderer = TextRenderer()
+        self.text_renderer = ImprovedTextRenderer()
     
     @staticmethod
     def convert_time_to_seconds(time_str: str) -> float:
@@ -232,8 +389,16 @@ class VoiceFrameVideoGenerator:
             # Default character positions
             if not character_positions:
                 character_positions = {
-                    "Scorpion": {"side": "left", "max_width": 450},
-                    "Frog": {"side": "right", "max_width": 450}
+                    "Scorpion": {
+                        "side": "left", 
+                        "max_width": 400,
+                        "tail_side": "left"  # ADD THIS
+                    },
+                    "Frog": {
+                        "side": "right", 
+                        "max_width": 400,
+                        "tail_side": "right"  # ADD THIS
+                    }
                 }
             
             # Create clips for each dialogue
@@ -259,10 +424,25 @@ class VoiceFrameVideoGenerator:
                     side = char_config.get("side", "left")
                     max_width = char_config.get("max_width", 400)
                     
-                    # Create text image using PIL (includes background and border)
-                    text_renderer = TextRenderer(font_size, font_color)
-                    text_img = text_renderer.create_text_image(text_content, max_width)
+                    # # Create text image using PIL (includes background and border)
+                    # text_renderer = TextRenderer(font_size, font_color)
+                    # text_img = text_renderer.create_text_image(text_content, max_width)
                     
+                    # NEW CODE - Create speech bubble instead of plain text box
+                    text_renderer = ImprovedTextRenderer(font_size, font_color)
+
+                    # Get tail side from character config (or default to left)
+                    tail_side = char_config.get("tail_side", "left" if side == "left" else "right")
+
+                    # Create speech bubble with proper styling
+                    text_img = text_renderer.create_speech_bubble(
+                        text=text_content,
+                        max_width=max_width,
+                        padding=12,  # Reduced padding for tighter boxes
+                        corner_radius=18,
+                        add_tail=True,
+                        tail_side=tail_side
+                    )
                     # Save text image temporarily
                     temp_text_path = self.base_dir / f"temp_text_{i}.png"
                     text_img.save(temp_text_path)

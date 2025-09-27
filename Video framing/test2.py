@@ -1,139 +1,31 @@
-# """
-# Main file example showing how to use the video_generator module
-# """
-
-# # Import the video generator module
-# from framing import VideoGenerator, create_video_with_audio
-
-# def main():
-#     # Option 1: Using the VideoGenerator class
-#     print("Creating video using VideoGenerator class...")
-    
-#     # Initialize the generator
-#     generator = VideoGenerator()
-    
-#     # Configure paths
-#     background_image = "background_image.jpg"
-#     scene_data_file = "scene_data.json"
-#     audio_directory = "output_audio"
-#     output_video = "output/generated_video.mp4"
-    
-#     # Optional: Custom character positioning
-#     custom_positions = {
-#         "Scorpion": {"side": "left", "max_width": 500},
-#         "Frog": {"side": "right", "max_width": 500}
-#     }
-    
-#     # Generate the video
-#     success = generator.generate_video(
-#         background_image_path=background_image,
-#         scene_data_path=scene_data_file,
-#         output_path=output_video,
-#         audio_dir=audio_directory,
-#         character_positions=custom_positions,
-#         font_size=22,
-#         font_color='gold',
-#         verbose=True
-#     )
-    
-#     if success:
-#         print("Video generated successfully!")
-#     else:
-#         print("Video generation failed!")
-    
-#     print("-" * 50)
-    
-#     # Option 2: Using the convenience function
-#     print("Creating video using convenience function...")
-    
-#     success2 = create_video_with_audio(
-#         background_image_path=background_image,
-#         scene_data_json_path=scene_data_file,
-#         output_file="output/generated_video_2.mp4",
-#         character_positions=custom_positions,
-#         font_size=20,
-#         font_color='white',
-#         audio_dir=audio_directory,
-#         verbose=True
-#     )
-    
-#     if success2:
-#         print("Second video generated successfully!")
-#     else:
-#         print("Second video generation failed!")
-
-
-# def batch_process_videos():
-#     """Example of processing multiple videos"""
-#     generator = VideoGenerator()
-    
-#     # List of videos to process
-#     video_configs = [
-#         {
-#             "background": "backgrounds/scene1.jpg",
-#             "scene_data": "data/scene1.json",
-#             "audio_dir": "audio/scene1",
-#             "output": "output/scene1_video.mp4"
-#         },
-#         {
-#             "background": "backgrounds/scene2.jpg",
-#             "scene_data": "data/scene2.json",
-#             "audio_dir": "audio/scene2",
-#             "output": "output/scene2_video.mp4"
-#         }
-#     ]
-    
-#     for i, config in enumerate(video_configs, 1):
-#         print(f"Processing video {i}/{len(video_configs)}...")
-        
-#         success = generator.generate_video(
-#             background_image_path=config["background"],
-#             scene_data_path=config["scene_data"],
-#             output_path=config["output"],
-#             audio_dir=config["audio_dir"],
-#             verbose=True
-#         )
-        
-#         if success:
-#             print(f"✓ Video {i} completed: {config['output']}")
-#         else:
-#             print(f"✗ Video {i} failed!")
-
-
-# if __name__ == "__main__":
-#     main()
-    
-#     # Uncomment to run batch processing
-#     # batch_process_videos()
-
 """
 Test script for the Dynamic Video Generator
 Shows how to use dynamic audio-based timing for dialogue rendering
+with support for top/bottom positioning of dialogue boxes
 """
 
+import os
 from framing import VideoGenerator  # Original generator
 from framing_dynamic import DynamicVideoGenerator, create_dynamic_video_with_audio, HybridVideoGenerator
+
 
 def test_dynamic_video_generation():
     """Test the dynamic video generation with audio-based timing"""
     print("=== Testing Dynamic Video Generation ===")
-    
-    # Initialize the dynamic generator
+
     generator = DynamicVideoGenerator()
-    
-    # Configure paths
+
     background_image = "background_image.jpg"
     scene_data_file = "scene_data.json"
     audio_directory = "output_audio"
     output_video = "output/dynamic_video.mp4"
-    
-    # Custom character positioning
+
+    # Custom character positioning (side + vertical)
     custom_positions = {
-        "Scorpion": {"side": "left", "max_width": 500},
-        "Frog": {"side": "right", "max_width": 500}
+        "Scorpion": {"side": "left", "vertical": "top", "max_width": 500},
+        "Frog": {"side": "right", "vertical": "top", "max_width": 500}
     }
-    
-    # Generate video with dynamic timing
+
     success = generator.generate_video_dynamic(
         background_image_path=background_image,
         scene_data_path=scene_data_file,
@@ -142,30 +34,30 @@ def test_dynamic_video_generation():
         character_positions=custom_positions,
         font_size=22,
         font_color='gold',
-        gap_between_dialogues=0.8,  # 0.8 second gap between dialogues
-        start_delay=3.0,  # 3 second delay before first dialogue
+        gap_between_dialogues=0.8,
+        start_delay=3.0,
         verbose=True
     )
-    
+
     if success:
         print("✓ Dynamic video generated successfully!")
     else:
         print("✗ Dynamic video generation failed!")
-    
+
     return success
 
 
 def test_convenience_function():
     """Test the convenience function for dynamic video generation"""
     print("\n=== Testing Convenience Function ===")
-    
+
     success = create_dynamic_video_with_audio(
         background_image_path="background_image.jpg",
         scene_data_json_path="scene_data.json",
         output_file="output/convenience_dynamic_video.mp4",
         character_positions={
-            "Scorpion": {"side": "left", "max_width": 480},
-            "Frog": {"side": "right", "max_width": 480}
+            "Scorpion": {"side": "left", "vertical": "bottom", "max_width": 480},
+            "Frog": {"side": "right", "vertical": "bottom", "max_width": 480}
         },
         font_size=20,
         font_color='white',
@@ -173,22 +65,21 @@ def test_convenience_function():
         gap_between_dialogues=0.5,
         verbose=True
     )
-    
+
     if success:
         print("✓ Convenience function video generated successfully!")
     else:
         print("✗ Convenience function video generation failed!")
-    
+
     return success
 
 
 def test_hybrid_generator():
     """Test the hybrid generator that can switch between dynamic and static timing"""
     print("\n=== Testing Hybrid Generator ===")
-    
+
     hybrid_gen = HybridVideoGenerator()
-    
-    # Test with dynamic timing
+
     print("Testing hybrid generator with dynamic timing...")
     success1 = hybrid_gen.generate_video_hybrid(
         background_image_path="background_image.jpg",
@@ -199,8 +90,7 @@ def test_hybrid_generator():
         gap_between_dialogues=0.6,
         verbose=True
     )
-    
-    # Test with static timing (fallback to original method)
+
     print("\nTesting hybrid generator with static timing...")
     success2 = hybrid_gen.generate_video_hybrid(
         background_image_path="background_image.jpg",
@@ -210,20 +100,19 @@ def test_hybrid_generator():
         use_dynamic_timing=False,
         verbose=True
     )
-    
+
     if success1 and success2:
         print("✓ Both hybrid tests completed successfully!")
     else:
         print(f"✗ Hybrid tests completed with issues (Dynamic: {success1}, Static: {success2})")
-    
+
     return success1 and success2
 
 
 def compare_timing_methods():
     """Compare original static timing vs new dynamic timing"""
     print("\n=== Comparing Timing Methods ===")
-    
-    # Original generator with static timing
+
     original_gen = VideoGenerator()
     print("Generating video with original static timing...")
     success1 = original_gen.generate_video(
@@ -233,8 +122,7 @@ def compare_timing_methods():
         audio_dir="output_audio",
         verbose=True
     )
-    
-    # Dynamic generator
+
     dynamic_gen = DynamicVideoGenerator()
     print("\nGenerating video with dynamic audio-based timing...")
     success2 = dynamic_gen.generate_video_dynamic(
@@ -245,27 +133,20 @@ def compare_timing_methods():
         gap_between_dialogues=0.5,
         verbose=True
     )
-    
+
     print("\n--- Comparison Results ---")
     print(f"Static timing (original): {'✓ Success' if success1 else '✗ Failed'}")
     print(f"Dynamic timing (new): {'✓ Success' if success2 else '✗ Failed'}")
-    
-    if success1 and success2:
-        print("\n✓ Both methods completed successfully!")
-        print("You can now compare the output videos to see the difference in timing.")
-        print("- original_static.mp4: Uses scene data timing (may cut off audio)")
-        print("- new_dynamic.mp4: Uses actual audio duration (full audio playback)")
-    
+
     return success1 and success2
 
 
 def batch_process_with_dynamic_timing():
     """Example of batch processing with dynamic timing"""
     print("\n=== Batch Processing with Dynamic Timing ===")
-    
+
     generator = DynamicVideoGenerator()
-    
-    # List of videos to process with dynamic timing
+
     video_configs = [
         {
             "background": "backgrounds/scene1.jpg",
@@ -282,12 +163,10 @@ def batch_process_with_dynamic_timing():
             "gap": 0.8
         }
     ]
-    
+
     successful_videos = 0
-    
     for i, config in enumerate(video_configs, 1):
         print(f"\nProcessing video {i}/{len(video_configs)}...")
-        
         success = generator.generate_video_dynamic(
             background_image_path=config["background"],
             scene_data_path=config["scene_data"],
@@ -296,46 +175,38 @@ def batch_process_with_dynamic_timing():
             gap_between_dialogues=config["gap"],
             verbose=True
         )
-        
         if success:
             print(f"✓ Video {i} completed: {config['output']}")
             successful_videos += 1
         else:
             print(f"✗ Video {i} failed!")
-    
+
     print(f"\nBatch processing complete: {successful_videos}/{len(video_configs)} videos successful")
     return successful_videos == len(video_configs)
 
 
 def main():
-    """Run all tests"""
     print("Dynamic Video Generator Test Suite")
     print("=" * 50)
-    
-    # Create output directory if it doesn't exist
+
     os.makedirs("output", exist_ok=True)
-    
+
     test_results = []
-    
-    # Run individual tests
     test_results.append(("Dynamic Generation", test_dynamic_video_generation()))
     test_results.append(("Convenience Function", test_convenience_function()))
     test_results.append(("Hybrid Generator", test_hybrid_generator()))
     test_results.append(("Timing Comparison", compare_timing_methods()))
-    
-    # Print summary
+
     print("\n" + "=" * 50)
     print("TEST SUMMARY")
     print("=" * 50)
-    
     for test_name, result in test_results:
         status = "✓ PASSED" if result else "✗ FAILED"
         print(f"{test_name}: {status}")
-    
+
     total_passed = sum(1 for _, result in test_results if result)
     print(f"\nTotal: {total_passed}/{len(test_results)} tests passed")
-    
-    # Run batch processing if individual tests are successful
+
     if total_passed == len(test_results):
         print("\nRunning batch processing test...")
         batch_success = batch_process_with_dynamic_timing()
@@ -346,5 +217,4 @@ def main():
 
 
 if __name__ == "__main__":
-    import os
     main()

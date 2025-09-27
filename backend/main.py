@@ -7,11 +7,8 @@ from pydantic import BaseModel
 from dotenv import load_dotenv
 from invoke import InvokeClient
 from gemini_client import GeminiClient
-import asyncio
-
-# MoviePy imports for video generation
-from moviepy.editor import ImageClip, TextClip, CompositeVideoClip, ColorClip
-from moviepy.video.fx.all import fadein, fadeout
+from video_gen import generate_video_from_scene_data, SPEECH_BUBBLE_CONFIGS
+from voice_generation import VoiceSynthesizer
 
 # Load environment variables from .env file
 load_dotenv()
@@ -64,252 +61,14 @@ def cleanup_directories():
     
     print("Cleanup complete.")
 
-def convert_time_to_seconds(time_str):
-    """Convert time string to seconds"""
-    if not isinstance(time_str, str):
-        raise ValueError("Time must be a string like '00:01:23' or '1:23.45'")
-    parts = [p.strip() for p in time_str.strip().split(':')]
-    if len(parts) == 3:
-        h = int(parts[0]); m = int(parts[1]); s = float(parts[2])
-        return h * 3600 + m * 60 + s
-    elif len(parts) == 2:
-        m = int(parts[0]); s = float(parts[1])
-        return m * 60 + s
-    elif len(parts) == 1:
-        return float(parts[0])
-    else:
-        raise ValueError(f"Time string format '{time_str}' is invalid.")
+# Helper functions moved to video_gen module
 
-def estimate_text_dimensions(text, fontsize, max_width):
-    """Estimate the dimensions needed for text based on character count and word wrapping"""
-    # Average character width (approximate)
-    char_width = fontsize * 0.6  # This varies by font, but 0.6 is a reasonable estimate for Arial
-    line_height = fontsize * 1.4  # Line height is typically 1.2-1.4 times font size
-    
-    # Calculate how many characters fit per line
-    chars_per_line = int(max_width / char_width)
-    
-    # Split text into words and estimate line breaks
-    words = text.split()
-    lines = []
-    current_line = ""
-    
-    for word in words:
-        test_line = current_line + " " + word if current_line else word
-        if len(test_line) <= chars_per_line:
-            current_line = test_line
-        else:
-            if current_line:
-                lines.append(current_line)
-            current_line = word
-    
-    if current_line:
-        lines.append(current_line)
-    
-    # Calculate final dimensions
-    estimated_height = len(lines) * line_height + 20  # Add some padding
-    estimated_width = min(max_width, max(len(line) * char_width for line in lines) + 20)
-    
-    return int(estimated_width), int(estimated_height), len(lines)
+# Border creation is now handled by video_gen module
 
-def create_custom_border(size, border_width=3, border_color=(218, 165, 32), bg_color=(0, 0, 0)):
-    """Create a custom border using ColorClips"""
-    width, height = size
-    
-    # Create background rectangle (semi-transparent black)
-    background = ColorClip(size=(width, height), color=bg_color).set_opacity(0.8)
-    
-    # Create border rectangles
-    top_border = ColorClip(size=(width, border_width), color=border_color)
-    bottom_border = ColorClip(size=(width, border_width), color=border_color).set_position((0, height - border_width))
-    left_border = ColorClip(size=(border_width, height), color=border_color)
-    right_border = ColorClip(size=(border_width, height), color=border_color).set_position((width - border_width, 0))
-    
-    # Composite all border elements
-    bordered_clip = CompositeVideoClip([background, top_border, bottom_border, left_border, right_border], size=(width, height))
-    return bordered_clip
+# Old video generation function removed - now handled by video_gen module
 
-def generate_video_from_images_and_audio(scene_data=None):
-    print("Starting video generation with dialogue overlays...")
-    image_folder = os.path.join(BASE_DIR, 'images')
-    output_video_path = os.path.join(BASE_DIR, 'video.mp4')
-
-    print(f"Image folder: {image_folder}, Output: {output_video_path}")
-
-    if not os.path.exists(image_folder):
-        print("No images folder found, cannot generate video.")
-        return
-
-    image_files = sorted([f for f in os.listdir(image_folder) if f.endswith('.jpeg')], key=lambda x: int(x.split('.')[0]))
-    print(f"Found image files: {image_files}")
-
-    if not image_files:
-        print("No image files found, skipping video generation.")
-        return
-
-    # Get the first (and likely only) background image
-    background_image_path = os.path.join(image_folder, image_files[0])
-    
-    if not scene_data:
-        print("No scene data provided, creating simple video without dialogues.")
-        # Fallback to simple video generation
-        background_clip = ImageClip(background_image_path).set_duration(15)
-        background_clip.write_videofile(output_video_path, fps=24, codec='libx264', audio=False)
-        background_clip.close()
-        return
-
-    # Extract scene information
-    scene_info = scene_data.get('scene', {})
-    background_info = scene_info.get('background', {})
-    dialogues = scene_info.get('dialogues', [])
-    
-    # Calculate video duration from scene end time
-    scene_end_time = background_info.get('end', '00:01:30')
-    video_duration = convert_time_to_seconds(scene_end_time)
-    print(f"Video duration: {video_duration} seconds")
-
-    # Create background clip
-    background_clip = ImageClip(background_image_path).set_duration(video_duration)
-    W, H = background_clip.size
-    print(f"Background size: {W}x{H}")
-
-    # Character positions configuration
-    character_positions = {
-        "Scorpion": {"side": "left", "max_width": 450},
-        "Frog": {"side": "right", "max_width": 450}
-    }
-
-    # Create clips for each dialogue with dynamic sizing
-    all_clips = [background_clip]  # Start with background
-    font_size = 20
-    font_color = 'gold'
-    
-    for i, dialogue in enumerate(dialogues):
-        try:
-            start_sec = convert_time_to_seconds(dialogue['start'])
-            end_sec = convert_time_to_seconds(dialogue['end'])
-            line_duration = end_sec - start_sec
-            
-            print(f"Dialogue {i+1}: {dialogue['character']} from {start_sec:.2f}s to {end_sec:.2f}s")
-            
-            if line_duration <= 0:
-                print(f"Warning: Dialogue {i+1} has invalid duration, skipping")
-                continue
-
-            # Set fade duration
-            FADE_DURATION = min(0.2, line_duration / 6.0)
-            
-            # Get character info
-            char_name = dialogue.get('character', 'Unknown')
-            line_text = dialogue.get('line', '')
-            
-            # Format text content
-            text_content = f"{char_name}: {line_text}"
-            
-            # Get character positioning preferences
-            if char_name in character_positions:
-                char_config = character_positions[char_name]
-                side = char_config.get("side", "left")
-                max_width = char_config.get("max_width", 400)
-            else:
-                print(f"WARNING: No position config for '{char_name}', using default.")
-                side = "left"
-                max_width = 400
-
-            # Estimate text dimensions dynamically
-            text_width, text_height, num_lines = estimate_text_dimensions(text_content, font_size, max_width)
-            
-            # Add padding to the border
-            border_padding = 20
-            border_width = text_width + border_padding
-            border_height = text_height + border_padding
-            
-            # Calculate positions based on side
-            margin = 40
-            bottom_margin = 60
-            
-            if side == "left":
-                text_x = margin + border_padding // 2
-                border_x = margin
-            else:  # right side
-                text_x = W - margin - text_width - border_padding // 2
-                border_x = W - margin - border_width
-            
-            # Position from bottom
-            text_y = H - bottom_margin - text_height
-            border_y = H - bottom_margin - border_height
-            
-            print(f"  Text dimensions: {text_width}x{text_height} ({num_lines} lines)")
-            print(f"  Border dimensions: {border_width}x{border_height}")
-            print(f"  Text position: ({text_x}, {text_y})")
-            print(f"  Border position: ({border_x}, {border_y})")
-
-            # Create custom border background for this dialogue
-            dialogue_border = create_custom_border((border_width, border_height))
-            dialogue_border = (dialogue_border
-                             .set_start(start_sec)
-                             .set_duration(line_duration)
-                             .set_position((border_x, border_y)))
-            
-            # Apply fade to border
-            if FADE_DURATION > 0:
-                dialogue_border = fadein(dialogue_border, FADE_DURATION)
-                dialogue_border = fadeout(dialogue_border, FADE_DURATION)
-            
-            all_clips.append(dialogue_border)
-
-            # Create text clip with dynamic sizing
-            text_clip = (
-                TextClip(
-                    txt=text_content,
-                    fontsize=font_size,
-                    color=font_color,
-                    font='Arial-Bold',
-                    method='caption',
-                    size=(text_width, text_height),
-                    align='center',
-                    interline=3
-                )
-                .set_start(start_sec)
-                .set_duration(line_duration)
-                .set_position((text_x, text_y))
-            )
-
-            all_clips.append(text_clip)
-            print(f"Created dynamic dialogue box for {char_name}")
-
-        except Exception as e:
-            print(f"Error creating dialogue for {char_name}: {e}")
-            import traceback
-            traceback.print_exc()
-            continue
-
-    # Create final composite video
-    print(f"Creating composite with {len(all_clips)} total clips")
-    final_clip = CompositeVideoClip(all_clips, size=(W, H))
-
-    # Render video
-    print(f"Rendering video (duration={video_duration:.2f}s, resolution={W}x{H}) ...")
-    final_clip.write_videofile(
-        output_video_path,
-        fps=24,
-        codec='libx264',
-        audio=False,
-        verbose=False,
-        logger=None
-    )
-    print(f"Video saved successfully: {output_video_path}")
-
-    # Clean up
-    final_clip.close()
-    for clip in all_clips:
-        try:
-            clip.close()
-        except:
-            pass
-
-async def generate_images_from_scene(gemini_result):
-    """Generate images based on the Gemini scene data"""
+async def generate_images_from_scene(gemini_result, websocket=None):
+    """Generate images based on the Gemini scene data with progress updates"""
     print("Starting image generation from scene data...")
     
     # Create images directory
@@ -324,6 +83,9 @@ async def generate_images_from_scene(gemini_result):
         print(f"Background description: {background_desc}")
         print(f"Characters: {[char.get('name', 'Unknown') for char in characters]}")
         
+        if websocket:
+            await websocket.send_json({"status": "Setting up image generation"})
+        
         if background_desc and characters:
             # Extract character prompts (just appearances)
             character_prompts = []
@@ -334,15 +96,34 @@ async def generate_images_from_scene(gemini_result):
             
             print(f"Character prompts: {character_prompts}")
             
+            if websocket:
+                await websocket.send_json({"status": "Creating AI image prompts"})
+            
             # Create InvokeClient with background and character prompts
             client = InvokeClient(
                 background_prompt=background_desc,
                 character_prompts=character_prompts
             )
             
+            if websocket:
+                await websocket.send_json({"status": "Generating scene with Stable Diffusion"})
+            
             # Generate the complete scene
             print("Generating complete scene with InvokeClient...")
-            final_image = client.generate_complete_scene()
+            
+            # Run the image generation in a thread to avoid blocking
+            import asyncio
+            import concurrent.futures
+            
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(client.generate_complete_scene)
+                
+                # Send progress updates while waiting for completion
+                while not future.done():
+                    pass
+                
+                # Wait for the image generation to complete (equivalent to thread.join())
+                final_image = future.result(timeout=300)  # 5 minute timeout
             
             if final_image:
                 # Save the generated image as 1.jpeg in the images folder
@@ -392,13 +173,12 @@ async def websocket_progress(websocket: WebSocket):
         if not prompt or prompt.strip() == "":
             await websocket.send_json({"status": "error", "message": "Empty prompt provided"})
             return
-        
+
         # Step 1: Cleanup
-        await websocket.send_json({"status": "Cleaning up previous files"})
         cleanup_directories()
         
-        # Step 2: Generate script with Gemini
         await websocket.send_json({"status": "Generating script with AI"})
+        
         optimized_prompt = f"Create a scene with characters optimized for stable diffusion image generation. Story about: {prompt}"
         gemini_result = gemini_client.ask(optimized_prompt)
         
@@ -411,19 +191,132 @@ async def websocket_progress(websocket: WebSocket):
         
         # Step 3: Generate images
         await websocket.send_json({"status": "Generating characters and background images"})
-        scene_data = await generate_images_from_scene(gemini_result)
+        
+        scene_data = await generate_images_from_scene(gemini_result, websocket)
         
         if not scene_data:
             await websocket.send_json({"status": "error", "message": "Failed to generate images"})
             return
         
-        # Step 4: Generate audio (placeholder for now)
+        await websocket.send_json({"status": "Images generated successfully"})
+        
+        # Step 4: Generate voice audio
         await websocket.send_json({"status": "Generating voice audio"})
-        # TODO: Implement actual audio generation
+        try:
+            # Set up voice synthesizer
+            voice_dir = os.path.join(BASE_DIR, "voices")  # Assuming voices are in backend/voices/
+            audio_dir = os.path.join(BASE_DIR, "audio")
+            
+            print(f"Voice directory: {voice_dir}")
+            print(f"Audio output directory: {audio_dir}")
+            print(f"Voice directory exists: {os.path.exists(voice_dir)}")
+            
+            if os.path.exists(voice_dir):
+                # Create audio directory if it doesn't exist
+                os.makedirs(audio_dir, exist_ok=True)
+                
+                synthesizer = VoiceSynthesizer(voice_dir, audio_dir)
+                
+                # Extract dialogues and characters from scene data
+                scene_info = scene_data.get('scene', {})
+                dialogues = scene_info.get('dialogues', [])
+                characters = scene_info.get('characters', [])
+                
+                print(f"Found {len(dialogues)} dialogues and {len(characters)} characters")
+                print(f"Dialogues: {[d.get('character', 'Unknown') + ': ' + d.get('line', '')[:30] + '...' for d in dialogues[:3]]}")
+                
+                if dialogues and characters:
+                    print(f"Synthesizing {len(dialogues)} dialogue lines for {len(characters)} characters")
+                    
+                    # Run voice synthesis in a thread to allow progress updates
+                    import asyncio
+                    import concurrent.futures
+                    
+                    with concurrent.futures.ThreadPoolExecutor() as executor:
+                        voice_future = executor.submit(synthesizer.synthesize_dialogues, dialogues, characters)
+                        
+                        # Wait for voice synthesis to complete (equivalent to thread.join())
+                        voice_future.result(timeout=120)  # 2 minute timeout
+                    
+                    # Verify audio files were created
+                    audio_files = [f for f in os.listdir(audio_dir) if f.endswith('.wav')]
+                    print(f"Created {len(audio_files)} audio files: {audio_files}")
+                    await websocket.send_json({"status": "Voice synthesis completed successfully"})
+                    print("Voice synthesis completed successfully")
+                else:
+                    await websocket.send_json({"status": "No dialogues found, continuing without audio"})
+                    print("No dialogues or characters found for voice synthesis")
+            else:
+                print(f"Voice directory not found at {voice_dir}, skipping voice synthesis")
+                print(f"Available directories in {BASE_DIR}: {[d for d in os.listdir(BASE_DIR) if os.path.isdir(os.path.join(BASE_DIR, d))]}")
+        except Exception as e:
+            print(f"Error during voice synthesis: {e}")
+            import traceback
+            traceback.print_exc()
+            # Continue without audio - video generation can still work
         
         # Step 5: Combine into video with dialogue overlays
         await websocket.send_json({"status": "Combining into final video with dialogues"})
-        generate_video_from_images_and_audio(scene_data)
+        
+        # Verify audio files exist before video generation
+        audio_dir = os.path.join(BASE_DIR, "audio")
+        if os.path.exists(audio_dir):
+            audio_files = [f for f in os.listdir(audio_dir) if f.endswith('.wav')]
+            print(f"Audio files available for video generation: {audio_files}")
+            if audio_files:
+                print("Audio files will be integrated into the video")
+            else:
+                print("No audio files found - video will be generated without audio")
+        else:
+            print("Audio directory not found - video will be generated without audio")
+        
+        # Use the new video_gen module with improved speech bubbles
+        print("Starting video generation with scene data and audio files...")
+        print(f"Scene data contains {len(scene_data.get('scene', {}).get('dialogues', []))} dialogues")
+        
+        # Generate dynamic character positions based on actual characters from Gemini
+        scene_info = scene_data.get('scene', {})
+        characters = scene_info.get('characters', [])
+        
+        # Create character positions dynamically
+        character_positions = {}
+        sides = ["left", "right"]  # Alternate between left and right
+        
+        for i, character in enumerate(characters):
+            char_name = character.get('name', f'Character_{i+1}')
+            side = sides[i % len(sides)]  # Alternate sides
+            
+            character_positions[char_name] = {
+                "side": side,
+                "max_width": 450,  # Use modern bubble width
+                "tail_side": side  # Tail points in same direction as position
+            }
+        
+        # Use modern_bubbles config as default (best looking)
+        bubble_config = SPEECH_BUBBLE_CONFIGS.get("modern_bubbles", {})
+        
+        print(f"Generated character positions: {list(character_positions.keys())}")
+        print(f"Using speech bubble config: modern_bubbles")
+        
+        # Run video generation in a thread
+        import asyncio
+        import concurrent.futures
+        
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            video_future = executor.submit(
+                generate_video_from_scene_data,
+                BASE_DIR, 
+                scene_data, 
+                character_positions
+            )
+            
+            # Wait for video generation to complete (equivalent to thread.join())
+            success = video_future.result(timeout=600)  # 10 minute timeout for video generation
+        
+        if not success:
+            await websocket.send_json({"status": "error", "message": "Video generation failed"})
+            return
+        
         video_path = os.path.join(BASE_DIR, "video.mp4")
         
         if not os.path.exists(video_path):

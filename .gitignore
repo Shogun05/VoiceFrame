@@ -1,13 +1,45 @@
+# dependencies
+node_modules/
+.idea/
+.bolt/
+# expo
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# native
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# metro
+.metro-health-check*
+
+# debug
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# macos
+.DS_Store
+*.pem
+
+# local env files
+.env*.local
+.env
+
+# typescript
+*.tsbuildinfo
+
+backend/audio
+backend/images
+backend/voices
+backend/__pycache__
+
+backend/scene_data.json
+backend/video.mp4
 venv/
-backend/__pycache__/
-backend/.env
-backend/voices/
-.vscode
-
-frontend-app/node_modules/
-frontend-app/.expo
-
-Video framing/framing
-*.mp4
-*.wav
-__pycache__/

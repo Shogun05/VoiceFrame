@@ -49,13 +49,13 @@ export default function HomeScreen() {
       await new Promise(resolve => setTimeout(resolve, 2000));
       
       // For now, always return success and navigate to video
-      showToast('Crafting a beautiful video for you..', 'success');
+      showToast('Generating a beautiful story...', 'success');
       
-      // Navigate to video screen after short delay
+      // Navigate to video screen with the prompt parameter
       setTimeout(() => {
         router.push({
           pathname: '/video',
-          params: { prompt: 'A magical story about a dragon and a princess' }
+          params: { prompt: storyPrompt.trim() }
         });
       }, 1000);
     } catch (error) {

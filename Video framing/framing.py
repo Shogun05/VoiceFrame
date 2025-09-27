@@ -1,8 +1,10 @@
 import json
 import os
-os.environ['IMAGEMAGICK_BINARY'] = r'D:\ImageMagick-7.1.2-Q16-HDRI\magick.exe'
+import numpy as np
+from PIL import Image, ImageDraw, ImageFont
+import io
 
-from moviepy.editor import (ImageClip, TextClip, CompositeVideoClip, 
+from moviepy.editor import (ImageClip, CompositeVideoClip, 
                           ColorClip, AudioFileClip, CompositeAudioClip)
 from moviepy.video.fx.all import fadein, fadeout
 
@@ -70,25 +72,17 @@ def convert_time_to_seconds(time_str):
     else:
         raise ValueError(f"Time string format '{time_str}' is invalid.")
 
-def estimate_text_dimensions(text, fontsize, max_width):
+def wrap_text_simple(text, max_chars_per_line=50):
     """
-    Estimate the dimensions needed for text based on character count and word wrapping
+    Simple text wrapping without external dependencies
     """
-    # Average character width (approximate)
-    char_width = fontsize * 0.6  # This varies by font, but 0.6 is a reasonable estimate for Arial
-    line_height = fontsize * 1.4  # Line height is typically 1.2-1.4 times font size
-    
-    # Calculate how many characters fit per line
-    chars_per_line = int(max_width / char_width)
-    
-    # Split text into words and estimate line breaks
-    words = text.split()
+    words = text.split(' ')
     lines = []
     current_line = ""
     
     for word in words:
         test_line = current_line + " " + word if current_line else word
-        if len(test_line) <= chars_per_line:
+        if len(test_line) <= max_chars_per_line:
             current_line = test_line
         else:
             if current_line:
@@ -98,28 +92,119 @@ def estimate_text_dimensions(text, fontsize, max_width):
     if current_line:
         lines.append(current_line)
     
-    # Calculate final dimensions
-    estimated_height = len(lines) * line_height + 20  # Add some padding
-    estimated_width = min(max_width, max(len(line) * char_width for line in lines) + 20)
-    
-    return int(estimated_width), int(estimated_height), len(lines)
+    return lines
 
-def create_custom_border(size, border_width=3, border_color=(218, 165, 32), bg_color=(0, 0, 0)):
-    """Create a custom border using ColorClips"""
-    width, height = size
+def create_text_image_pil(text, font_size=20, font_color=(255, 255, 255), 
+                         bg_color=(0, 0, 0), bg_opacity=0.8, 
+                         padding=20, border_color=(218, 165, 32), border_width=3,
+                         max_chars=50):
+    """
+    Create text image using PIL instead of MoviePy TextClip
+    """
+    try:
+        # Try to load a font, fallback to default if not available
+        try:
+            font = ImageFont.truetype("arial.ttf", font_size)
+        except:
+            try:
+                font = ImageFont.truetype("Arial.ttf", font_size)
+            except:
+                try:
+                    font = ImageFont.load_default()
+                    font_size = 11  # Default font size
+                except:
+                    # If all else fails, create without font
+                    font = None
+        
+        # Wrap text
+        lines = wrap_text_simple(text, max_chars)
+        
+        # Calculate text dimensions
+        if font:
+            # Get text dimensions using font
+            temp_img = Image.new('RGB', (1, 1))
+            temp_draw = ImageDraw.Draw(temp_img)
+            
+            line_heights = []
+            line_widths = []
+            
+            for line in lines:
+                bbox = temp_draw.textbbox((0, 0), line, font=font)
+                line_width = bbox[2] - bbox[0]
+                line_height = bbox[3] - bbox[1]
+                line_widths.append(line_width)
+                line_heights.append(line_height)
+            
+            text_width = max(line_widths) if line_widths else 0
+            text_height = sum(line_heights) + (len(lines) - 1) * 5  # 5px line spacing
+        else:
+            # Fallback calculation without font
+            text_width = max(len(line) for line in lines) * 8  # Rough estimate
+            text_height = len(lines) * 15  # Rough estimate
+        
+        # Add padding
+        img_width = text_width + padding * 2
+        img_height = text_height + padding * 2
+        
+        # Create image with transparent background
+        img = Image.new('RGBA', (img_width, img_height), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(img)
+        
+        # Draw background with opacity
+        bg_alpha = int(255 * bg_opacity)
+        bg_with_alpha = (*bg_color, bg_alpha)
+        draw.rectangle([0, 0, img_width-1, img_height-1], fill=bg_with_alpha)
+        
+        # Draw border
+        for i in range(border_width):
+            draw.rectangle([i, i, img_width-1-i, img_height-1-i], 
+                         outline=border_color, width=1)
+        
+        # Draw text
+        y_offset = padding
+        for line in lines:
+            if font:
+                draw.text((padding, y_offset), line, fill=font_color, font=font)
+                bbox = draw.textbbox((0, 0), line, font=font)
+                line_height = bbox[3] - bbox[1]
+                y_offset += line_height + 5
+            else:
+                draw.text((padding, y_offset), line, fill=font_color)
+                y_offset += 15  # Estimated line height
+        
+        # Convert PIL image to numpy array for MoviePy
+        img_array = np.array(img)
+        
+        return img_array
+        
+    except Exception as e:
+        print(f"Error creating text image: {e}")
+        # Return a simple colored rectangle as fallback
+        img = Image.new('RGBA', (300, 100), (*bg_color, int(255 * bg_opacity)))
+        return np.array(img)
+
+def create_dialogue_clip_from_image(text, font_size=20, font_color=(255, 255, 255),
+                                  bg_color=(0, 0, 0), bg_opacity=0.8,
+                                  padding=20, border_color=(218, 165, 32), 
+                                  border_width=3, max_chars=50):
+    """
+    Create a MoviePy clip from PIL-generated text image
+    """
+    img_array = create_text_image_pil(
+        text=text,
+        font_size=font_size,
+        font_color=font_color,
+        bg_color=bg_color,
+        bg_opacity=bg_opacity,
+        padding=padding,
+        border_color=border_color,
+        border_width=border_width,
+        max_chars=max_chars
+    )
     
-    # Create background rectangle (semi-transparent black)
-    background = ColorClip(size=(width, height), color=bg_color).set_opacity(0.8)
-    
-    # Create border rectangles
-    top_border = ColorClip(size=(width, border_width), color=border_color)
-    bottom_border = ColorClip(size=(width, border_width), color=border_color).set_position((0, height - border_width))
-    left_border = ColorClip(size=(border_width, height), color=border_color)
-    right_border = ColorClip(size=(border_width, height), color=border_color).set_position((width - border_width, 0))
-    
-    # Composite all border elements
-    bordered_clip = CompositeVideoClip([background, top_border, bottom_border, left_border, right_border], size=(width, height))
-    return bordered_clip
+    # Create ImageClip from numpy array
+    clip = ImageClip(img_array, transparent=True, duration=1)
+    return clip
 
 def process_scene_with_dialogues_and_frame(
     background_image_path,
@@ -128,7 +213,7 @@ def process_scene_with_dialogues_and_frame(
     output_file,
     character_positions=None,
     font_size=20,
-    font_color='gold',
+    font_color=(255, 255, 255),
     audio_dir="output_audio"
 ):
     # Check if files exist
@@ -152,11 +237,11 @@ def process_scene_with_dialogues_and_frame(
     # Default character positions if none provided
     if character_positions is None:
         character_positions = {
-            "Scorpion": {"side": "left", "max_width": 450},
-            "Frog": {"side": "right", "max_width": 450}
+            "Scorpion": {"side": "left", "max_chars": 45},
+            "Frog": {"side": "right", "max_chars": 45}
         }
 
-    # Create clips for each dialogue with dynamic sizing
+    # Create clips for each dialogue
     all_clips = [background_clip]  # Start with background
     audio_clips = []
 
@@ -180,10 +265,7 @@ def process_scene_with_dialogues_and_frame(
         char_name = dialogue.get('character', 'Unknown')
         line_text = dialogue.get('line', '')
         
-        # Format text content
-        text_content = f"{char_name}: {line_text}"
-        
-        # AUDIO PROCESSING - Enhanced with flexible search
+        # AUDIO PROCESSING
         try:
             audio_file_path = find_audio_file_flexible(
                 sequence_num=i,
@@ -196,15 +278,12 @@ def process_scene_with_dialogues_and_frame(
             if audio_file_path and os.path.exists(audio_file_path):
                 print(f"✓ Loading audio file: {audio_file_path}")
                 
-                # Load and time the audio clip
                 audio_clip = AudioFileClip(audio_file_path)
                 print(f"  Original audio duration: {audio_clip.duration:.2f}s")
                 print(f"  Expected dialogue duration: {line_duration:.2f}s")
                 
-                # Set the start time to match the dialogue timing
                 audio_clip = audio_clip.set_start(start_sec)
                 
-                # Handle duration mismatches
                 if audio_clip.duration > line_duration:
                     print(f"  Trimming audio from {audio_clip.duration:.2f}s to {line_duration:.2f}s")
                     audio_clip = audio_clip.subclip(0, line_duration)
@@ -218,81 +297,64 @@ def process_scene_with_dialogues_and_frame(
                 
         except Exception as e:
             print(f"✗ Error processing audio for {dialogue['character']}: {e}")
-            import traceback
-            traceback.print_exc()
 
         # Get character positioning preferences
         if char_name in character_positions:
             char_config = character_positions[char_name]
             side = char_config.get("side", "left")
-            max_width = char_config.get("max_width", 400)
+            max_chars = char_config.get("max_chars", 45)
         else:
             print(f"WARNING: No position config for '{char_name}', using default.")
             side = "left"
-            max_width = 400
+            max_chars = 45
 
         try:
-            # Estimate text dimensions dynamically
-            text_width, text_height, num_lines = estimate_text_dimensions(text_content, font_size, max_width)
+            # Format text
+            text_content = f"{char_name}: {line_text}"
+            print(f"  Creating text box for: {text_content[:50]}...")
+
+            # Create dialogue clip using PIL
+            dialogue_clip = create_dialogue_clip_from_image(
+                text=text_content,
+                font_size=font_size,
+                font_color=font_color,
+                bg_color=(0, 0, 0),
+                bg_opacity=0.8,
+                padding=15,
+                border_color=(218, 165, 32),
+                border_width=3,
+                max_chars=max_chars
+            )
             
-            # Add padding to the border
-            border_padding = 20
-            border_width = text_width + border_padding
-            border_height = text_height + border_padding
-            
-            # Calculate positions based on side
-            margin = 40
+            # Calculate position based on side
+            margin = 30
             bottom_margin = 60
             
+            clip_w, clip_h = dialogue_clip.size
+            
             if side == "left":
-                text_x = margin + border_padding // 2
-                border_x = margin
+                x_pos = margin
             else:  # right side
-                text_x = W - margin - text_width - border_padding // 2
-                border_x = W - margin - border_width
+                x_pos = W - margin - clip_w
             
-            # Position from bottom
-            text_y = H - bottom_margin - text_height
-            border_y = H - bottom_margin - border_height
+            y_pos = H - bottom_margin - clip_h
             
-            print(f"  Text dimensions: {text_width}x{text_height} ({num_lines} lines)")
-            print(f"  Border dimensions: {border_width}x{border_height}")
-            print(f"  Text position: ({text_x}, {text_y})")
-            print(f"  Border position: ({border_x}, {border_y})")
+            print(f"  Clip dimensions: {clip_w}x{clip_h}")
+            print(f"  Position: ({x_pos}, {y_pos})")
 
-            # Create custom border background for this dialogue
-            dialogue_border = create_custom_border((border_width, border_height))
-            dialogue_border = (dialogue_border
-                             .set_start(start_sec)
-                             .set_duration(line_duration)
-                             .set_position((border_x, border_y)))
+            # Set timing and position
+            dialogue_clip = (dialogue_clip
+                           .set_start(start_sec)
+                           .set_duration(line_duration)
+                           .set_position((x_pos, y_pos)))
             
-            # Apply fade to border
+            # Apply fade effects
             if FADE_DURATION > 0:
-                dialogue_border = fadein(dialogue_border, FADE_DURATION)
-                dialogue_border = fadeout(dialogue_border, FADE_DURATION)
-            
-            all_clips.append(dialogue_border)
+                dialogue_clip = fadein(dialogue_clip, FADE_DURATION)
+                dialogue_clip = fadeout(dialogue_clip, FADE_DURATION)
 
-            # Create text clip with dynamic sizing
-            text_clip = (
-                TextClip(
-                    txt=text_content,
-                    fontsize=font_size,
-                    color=font_color,
-                    font='Arial-Bold',
-                    method='caption',
-                    size=(text_width, text_height),
-                    align='center',
-                    interline=3
-                )
-                .set_start(start_sec)
-                .set_duration(line_duration)
-                .set_position((text_x, text_y))
-            )
-
-            all_clips.append(text_clip)
-            print(f"✓ Created dynamic dialogue box for {char_name}")
+            all_clips.append(dialogue_clip)
+            print(f"✓ Successfully created dialogue box for {char_name}")
 
         except Exception as e:
             print(f"✗ Error creating dialogue for {char_name}: {e}")
@@ -323,7 +385,6 @@ def process_scene_with_dialogues_and_frame(
             final_clip = final_clip.set_audio(final_audio)
             print("✓ Audio successfully added to video")
             
-            # Additional audio debugging
             print(f"Final audio duration: {final_audio.duration:.2f}s")
             print(f"Video duration: {video_duration:.2f}s")
             
@@ -382,15 +443,16 @@ if __name__ == '__main__':
     CHARACTER_POSITIONS = {
         "Scorpion": {
             "side": "left",
-            "max_width": 500
+            "max_chars": 45  # Maximum characters per line
         },
         "Frog": {
-            "side": "right",
-            "max_width": 500
+            "side": "right", 
+            "max_chars": 45
         }
     }
 
-    print("=== AUDIO-ENABLED VIDEO GENERATOR ===")
+    print("=== PIL-BASED TEXT RENDERER - NO IMAGEMAGICK REQUIRED ===")
+    print("✓ Uses Python PIL library for text rendering!")
     
     # Check if required files exist
     required_files = [BACKGROUND_IMAGE_FILE, SCENE_DATA_JSON_FILE]
@@ -425,8 +487,8 @@ if __name__ == '__main__':
                 scene_data_json_path=SCENE_DATA_JSON_FILE,
                 output_file=OUTPUT_VIDEO_FILE,
                 character_positions=CHARACTER_POSITIONS,
-                font_size=16,
-                font_color='gold',
+                font_size=18,
+                font_color=(255, 255, 255),  # White text
                 audio_dir=AUDIO_DIRECTORY 
             )
         except Exception as e:

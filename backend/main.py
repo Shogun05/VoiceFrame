@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 from invoke import InvokeClient
 from gemini_client import GeminiClient
 from video_gen import generate_video_from_scene_data
+from voice_generation import VoiceSynthesizer
 
 # Load environment variables from .env file
 load_dotenv()
@@ -60,53 +61,7 @@ def cleanup_directories():
     
     print("Cleanup complete.")
 
-def convert_time_to_seconds(time_str):
-    """Convert time string to seconds"""
-    if not isinstance(time_str, str):
-        raise ValueError("Time must be a string like '00:01:23' or '1:23.45'")
-    parts = [p.strip() for p in time_str.strip().split(':')]
-    if len(parts) == 3:
-        h = int(parts[0]); m = int(parts[1]); s = float(parts[2])
-        return h * 3600 + m * 60 + s
-    elif len(parts) == 2:
-        m = int(parts[0]); s = float(parts[1])
-        return m * 60 + s
-    elif len(parts) == 1:
-        return float(parts[0])
-    else:
-        raise ValueError(f"Time string format '{time_str}' is invalid.")
-
-def estimate_text_dimensions(text, fontsize, max_width):
-    """Estimate the dimensions needed for text based on character count and word wrapping"""
-    # Average character width (approximate)
-    char_width = fontsize * 0.6  # This varies by font, but 0.6 is a reasonable estimate for Arial
-    line_height = fontsize * 1.4  # Line height is typically 1.2-1.4 times font size
-    
-    # Calculate how many characters fit per line
-    chars_per_line = int(max_width / char_width)
-    
-    # Split text into words and estimate line breaks
-    words = text.split()
-    lines = []
-    current_line = ""
-    
-    for word in words:
-        test_line = current_line + " " + word if current_line else word
-        if len(test_line) <= chars_per_line:
-            current_line = test_line
-        else:
-            if current_line:
-                lines.append(current_line)
-            current_line = word
-    
-    if current_line:
-        lines.append(current_line)
-    
-    # Calculate final dimensions
-    estimated_height = len(lines) * line_height + 20  # Add some padding
-    estimated_width = min(max_width, max(len(line) * char_width for line in lines) + 20)
-    
-    return int(estimated_width), int(estimated_height), len(lines)
+# Helper functions moved to video_gen module
 
 # Border creation is now handled by video_gen module
 
@@ -221,14 +176,69 @@ async def websocket_progress(websocket: WebSocket):
             await websocket.send_json({"status": "error", "message": "Failed to generate images"})
             return
         
-        # Step 4: Generate audio (placeholder for now)
+        # Step 4: Generate voice audio
         await websocket.send_json({"status": "Generating voice audio"})
-        # TODO: Implement actual audio generation
+        try:
+            # Set up voice synthesizer
+            voice_dir = os.path.join(BASE_DIR, "voices")  # Assuming voices are in backend/voices/
+            audio_dir = os.path.join(BASE_DIR, "audio")
+            
+            print(f"Voice directory: {voice_dir}")
+            print(f"Audio output directory: {audio_dir}")
+            print(f"Voice directory exists: {os.path.exists(voice_dir)}")
+            
+            if os.path.exists(voice_dir):
+                # Create audio directory if it doesn't exist
+                os.makedirs(audio_dir, exist_ok=True)
+                
+                synthesizer = VoiceSynthesizer(voice_dir, audio_dir)
+                
+                # Extract dialogues and characters from scene data
+                scene_info = scene_data.get('scene', {})
+                dialogues = scene_info.get('dialogues', [])
+                characters = scene_info.get('characters', [])
+                
+                print(f"Found {len(dialogues)} dialogues and {len(characters)} characters")
+                print(f"Dialogues: {[d.get('character', 'Unknown') + ': ' + d.get('line', '')[:30] + '...' for d in dialogues[:3]]}")
+                
+                if dialogues and characters:
+                    print(f"Synthesizing {len(dialogues)} dialogue lines for {len(characters)} characters")
+                    synthesizer.synthesize_dialogues(dialogues, characters)
+                    
+                    # Verify audio files were created
+                    audio_files = [f for f in os.listdir(audio_dir) if f.endswith('.wav')]
+                    print(f"Created {len(audio_files)} audio files: {audio_files}")
+                    print("Voice synthesis completed successfully")
+                else:
+                    print("No dialogues or characters found for voice synthesis")
+            else:
+                print(f"Voice directory not found at {voice_dir}, skipping voice synthesis")
+                print(f"Available directories in {BASE_DIR}: {[d for d in os.listdir(BASE_DIR) if os.path.isdir(os.path.join(BASE_DIR, d))]}")
+        except Exception as e:
+            print(f"Error during voice synthesis: {e}")
+            import traceback
+            traceback.print_exc()
+            # Continue without audio - video generation can still work
         
         # Step 5: Combine into video with dialogue overlays
         await websocket.send_json({"status": "Combining into final video with dialogues"})
         
-        # Use the new video_gen module
+        # Verify audio files exist before video generation
+        audio_dir = os.path.join(BASE_DIR, "audio")
+        if os.path.exists(audio_dir):
+            audio_files = [f for f in os.listdir(audio_dir) if f.endswith('.wav')]
+            print(f"Audio files available for video generation: {audio_files}")
+            if audio_files:
+                print("Audio files will be integrated into the video")
+            else:
+                print("No audio files found - video will be generated without audio")
+        else:
+            print("Audio directory not found - video will be generated without audio")
+        
+        # Use the new video_gen module with detailed logging
+        print("Starting video generation with scene data and audio files...")
+        print(f"Scene data contains {len(scene_data.get('scene', {}).get('dialogues', []))} dialogues")
+        
         success = generate_video_from_scene_data(BASE_DIR, scene_data)
         if not success:
             await websocket.send_json({"status": "error", "message": "Video generation failed"})

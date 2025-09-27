@@ -294,22 +294,82 @@ class VoiceFrameVideoGenerator:
                     print(f"Error creating dialogue {i+1}: {e}")
                     continue
             
-            # Add audio if available
+            # Add synchronized audio if available
             audio_files = self.get_audio_files()
-            if audio_files:
-                print(f"Found {len(audio_files)} audio files")
+            if audio_files and len(audio_files) >= len(dialogues):
+                print(f"Found {len(audio_files)} audio files for {len(dialogues)} dialogues")
                 try:
-                    audio_clips = [AudioFileClip(f) for f in audio_files]
-                    combined_audio = CompositeAudioClip(audio_clips)
+                    # Create synchronized audio clips
+                    synchronized_audio_clips = []
                     
-                    # Create final composite with audio
+                    for i, dialogue in enumerate(dialogues):
+                        if i >= len(audio_files):
+                            break
+                            
+                        # Get dialogue timing
+                        start_sec = self.convert_time_to_seconds(dialogue['start'])
+                        end_sec = self.convert_time_to_seconds(dialogue['end'])
+                        expected_duration = end_sec - start_sec
+                        
+                        print(f"Processing audio {i+1}: {dialogue['character']} from {start_sec:.2f}s to {end_sec:.2f}s (expected: {expected_duration:.2f}s)")
+                        
+                        # Load the audio file
+                        audio_file = audio_files[i]
+                        audio_clip = AudioFileClip(audio_file)
+                        actual_duration = audio_clip.duration
+                        
+                        print(f"  Audio file duration: {actual_duration:.2f}s, expected: {expected_duration:.2f}s")
+                        
+                        # Adjust audio duration to match expected timing
+                        if abs(actual_duration - expected_duration) > 0.1:  # If difference > 0.1 seconds
+                            if actual_duration > expected_duration:
+                                # Audio is too long - trim it using MoviePy 2.x API
+                                audio_clip = audio_clip.with_duration(expected_duration)
+                                print(f"  Trimmed audio to {expected_duration:.2f}s")
+                            else:
+                                # Audio is too short - pad with silence
+                                silence_duration = expected_duration - actual_duration
+                                print(f"  Audio is {silence_duration:.2f}s too short, will be padded during composition")
+                                # Note: We'll handle short audio by letting MoviePy handle it naturally
+                        
+                        # Set the start time for this audio clip using MoviePy 2.x API
+                        audio_clip = audio_clip.with_start(start_sec)
+                        synchronized_audio_clips.append(audio_clip)
+                    
+                    # Handle gaps between dialogues by adding silence
+                    final_audio_clips = []
+                    
+                    for i, audio_clip in enumerate(synchronized_audio_clips):
+                        final_audio_clips.append(audio_clip)
+                        
+                        # Check if there's a gap before the next dialogue
+                        if i < len(synchronized_audio_clips) - 1:
+                            current_end = self.convert_time_to_seconds(dialogues[i]['end'])
+                            next_start = self.convert_time_to_seconds(dialogues[i+1]['start'])
+                            gap_duration = next_start - current_end
+                            
+                            if gap_duration > 0.1:  # If gap > 0.1 seconds
+                                print(f"  Gap of {gap_duration:.2f}s detected between dialogues {i+1} and {i+2}")
+                                # Note: Gaps will be handled naturally by CompositeAudioClip positioning
+                    
+                    # Combine all audio clips
+                    combined_audio = CompositeAudioClip(final_audio_clips)
+                    
+                    # Create final composite with synchronized audio
                     final_clip = CompositeVideoClip(all_clips, size=(W, H)).with_audio(combined_audio)
+                    print("Successfully synchronized audio with dialogue timing")
+                    
                 except Exception as e:
-                    print(f"Error adding audio: {e}")
+                    print(f"Error synchronizing audio: {e}")
+                    import traceback
+                    traceback.print_exc()
                     # Fallback to video without audio
                     final_clip = CompositeVideoClip(all_clips, size=(W, H))
             else:
-                print("No audio files found, creating video without audio")
+                if audio_files:
+                    print(f"Audio file count mismatch: {len(audio_files)} files for {len(dialogues)} dialogues")
+                else:
+                    print("No audio files found, creating video without audio")
                 final_clip = CompositeVideoClip(all_clips, size=(W, H))
             
             # Render video
@@ -329,8 +389,8 @@ class VoiceFrameVideoGenerator:
                 except:
                     pass
             
-            if audio_files:
-                for clip in audio_clips:
+            if audio_files and 'synchronized_audio_clips' in locals():
+                for clip in synchronized_audio_clips:
                     try:
                         clip.close()
                     except:

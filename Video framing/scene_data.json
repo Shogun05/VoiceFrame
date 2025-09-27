@@ -1,0 +1,63 @@
+{
+  "scene": {
+    "background": {
+      "description": "A vibrant, sun-drenched riverbank teeming with tall green reeds gives way to a wide, gently flowing river under a clear blue sky. A ancient, moss-covered tree stump sits at the edge of the water.",
+      "start": "00:00:00",
+      "end": "00:01:30"
+    },
+    "characters": [
+      {
+        "name": "Frog",
+        "appearance": "A plump, emerald-green frog with prominent golden eyes, smooth, wet-looking skin, and broad webbed feet, poised near the river's edge."
+      },
+      {
+        "name": "Scorpion",
+        "appearance": "A compact, charcoal-black scorpion with a glossy, segmented exoskeleton, sharp, articulated pincers, and a deadly, segmented tail arcing over its back, tipped with a glistening stinger."
+      }
+    ],
+    "dialogues": [
+      {
+        "character": "Scorpion",
+        "start": "00:00:05",
+        "end": "00:00:15",
+        "line": "Oh, noble Frog, I beg your assistance! This vast river blocks my path, and I, a creature of the land, cannot swim. Would you ferry me across?"
+      },
+      {
+        "character": "Frog",
+        "start": "00:00:18",
+        "end": "00:00:28",
+        "line": "A scorpion? On my back? Are you daft? You will surely sting me, and then we both shall drown in the depths of this river!"
+      },
+      {
+        "character": "Scorpion",
+        "start": "00:00:31",
+        "end": "00:00:46",
+        "line": "Preposterous, my friend! Consider the logic. If I sting you, my ride, we both perish. My survival is entirely dependent on yours. Why would I jeopardize us both?"
+      },
+      {
+        "character": "Frog",
+        "start": "00:00:49",
+        "end": "00:00:54",
+        "line": "Your words, though chilling, hold a grim truth. Very well, climb aboard, but make no sudden movements!"
+      },
+      {
+        "character": "Scorpion",
+        "start": "00:00:57",
+        "end": "00:01:03",
+        "line": "A thousand thanks, kind Frog! You shall not regret this act of unparalleled generosity."
+      },
+      {
+        "character": "Frog",
+        "start": "00:01:07",
+        "end": "00:01:10",
+        "line": "(yelping, a sharp pain in its back) Why? Why did you sting me, despite your promise?"
+      },
+      {
+        "character": "Scorpion",
+        "start": "00:01:13",
+        "end": "00:01:25",
+        "line": "I... I couldn't help myself. It is simply my nature. Now, we both face the inevitable. Forgive me, if you can, for what I truly am."
+      }
+    ]
+  }
+}

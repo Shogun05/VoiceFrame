@@ -6,3 +6,6 @@ backend/voices/
 
 frontend-app/node_modules/
 frontend-app/.expo
+
+Video framing/framing
+*.mp4

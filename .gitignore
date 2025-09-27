@@ -10,3 +10,4 @@ frontend-app/.expo
 Video framing/framing
 *.mp4
 *.wav
+__pycache__/

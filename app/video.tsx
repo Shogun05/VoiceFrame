@@ -7,13 +7,18 @@ import {
   ActivityIndicator,
   StyleSheet,
   FlatList,
+  Platform,
 } from "react-native";
 import { VideoView, useVideoPlayer } from "expo-video";
 import { useRouter } from "expo-router";
-import { ArrowLeft, Share } from "lucide-react-native";
+import { ArrowLeft, Share as ShareIcon, Download } from "lucide-react-native";
 import { useTheme } from "@/contexts/ThemeContext";
 import { LoadingIndicator } from "@/components/LoadingIndicator";
 import { Toast } from "@/components/Toast";
+
+//  Expo-managed native modules (must install via `expo install`)
+import * as FileSystem from "expo-file-system";
+import * as Sharing from "expo-sharing";
 
 export default function VideoScreen() {
   const { theme } = useTheme();
@@ -34,16 +39,13 @@ export default function VideoScreen() {
   };
   const hideToast = () => setToast((prev) => ({ ...prev, visible: false }));
 
-  // ✅ Correct usage of useVideoPlayer (hook, not inside useEffect)
-  const player = useVideoPlayer(
-    videoUrl ? { uri: videoUrl } : undefined,
-    (p) => {
-      if (videoUrl) {
-        p.loop = true;
-        p.play();
-      }
+  // 🎥 Video player hook
+  const player = useVideoPlayer(videoUrl ? { uri: videoUrl } : undefined, (p) => {
+    if (videoUrl) {
+      p.loop = true;
+      p.play();
     }
-  );
+  });
 
   // Track loading state from player
   useEffect(() => {
@@ -54,11 +56,16 @@ export default function VideoScreen() {
     return () => sub.remove();
   }, [player]);
 
-  // WebSocket connection
+  // 🔌 WebSocket connection
   useEffect(() => {
-    const ws = new WebSocket("ws://10.0.2.2:8000/ws/progress"); // Android emulator
+    const WS_URL =
+      Platform.OS === "android"
+        ? "ws://10.0.2.2:8000/ws/progress" // Android Emulator
+        : "ws://localhost:8000/ws/progress"; // Web / iOS
 
-    ws.onopen = () => console.log("WebSocket connected");
+    const ws = new WebSocket(WS_URL);
+
+    ws.onopen = () => console.log("WebSocket connected:", WS_URL);
 
     ws.onmessage = (event) => {
       try {
@@ -66,9 +73,9 @@ export default function VideoScreen() {
 
         if (data.status === "done") {
           setGenerationDone(true);
-          // Replace with backend-provided URL
           setVideoUrl(
-            "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4"
+            data.video_url ||
+              "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4"
           );
           showToast("Video generation completed!", "success");
         } else {
@@ -89,6 +96,68 @@ export default function VideoScreen() {
 
     return () => ws.close();
   }, []);
+
+  // 📥 Download video
+  const handleDownload = async () => {
+    if (!videoUrl) {
+      showToast("No video available to download", "error");
+      return;
+    }
+
+    try {
+      if (Platform.OS === "web") {
+        const link = document.createElement("a");
+        link.href = videoUrl;
+        link.download = "generated_video.mp4";
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      } else {
+        const fileUri = FileSystem.documentDirectory + "generated_video.mp4";
+        const { uri } = await FileSystem.downloadAsync(videoUrl, fileUri);
+        showToast("Video downloaded to app storage", "success");
+        console.log("Video saved to:", uri);
+      }
+    } catch (error) {
+      console.error("Download error:", error);
+      showToast("Download failed", "error");
+    }
+  };
+
+  // 📤 Share video
+  const handleShare = async () => {
+    if (!videoUrl) {
+      showToast("No video available to share", "error");
+      return;
+    }
+
+    try {
+      if (Platform.OS === "web") {
+        if (navigator.share) {
+          await navigator.share({
+            title: "Generated Video",
+            text: "Check out this video!",
+            url: videoUrl,
+          });
+        } else {
+          showToast("Web Share API not supported", "warning");
+        }
+      } else {
+        const fileUri = FileSystem.documentDirectory + "generated_video.mp4";
+        await FileSystem.downloadAsync(videoUrl, fileUri);
+
+        if (!(await Sharing.isAvailableAsync())) {
+          showToast("Sharing not available", "warning");
+          return;
+        }
+
+        await Sharing.shareAsync(fileUri);
+      }
+    } catch (error) {
+      console.error("Share error:", error);
+      showToast("Sharing failed", "error");
+    }
+  };
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
@@ -112,12 +181,21 @@ export default function VideoScreen() {
           Your Generated Video
         </Text>
 
-        <TouchableOpacity
-          onPress={() => showToast("Sharing not implemented", "warning")}
-          style={[styles.headerButton, { backgroundColor: theme.surface }]}
-        >
-          <Share size={24} color={theme.text} />
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          <TouchableOpacity
+            onPress={handleDownload}
+            style={[styles.headerButton, { backgroundColor: theme.surface }]}
+          >
+            <Download size={22} color={theme.text} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={handleShare}
+            style={[styles.headerButton, { backgroundColor: theme.surface }]}
+          >
+            <ShareIcon size={22} color={theme.text} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Progress / Video */}
@@ -182,12 +260,18 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     paddingTop: 48,
   },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
   headerButton: {
     width: 44,
     height: 44,
     borderRadius: 22,
     justifyContent: "center",
     alignItems: "center",
+    marginLeft: 8,
   },
   headerTitle: {
     fontSize: 18,

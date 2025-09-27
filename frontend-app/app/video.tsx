@@ -6,9 +6,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   StyleSheet,
-  FlatList,
   Platform,
-  Image,
 } from "react-native";
 import { VideoView, useVideoPlayer } from "expo-video";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -17,7 +15,6 @@ import { useTheme } from "@/contexts/ThemeContext";
 import { LoadingIndicator } from "@/components/LoadingIndicator";
 import { Toast } from "@/components/Toast";
 import { FadingBorderButton } from "@/components/FadingBorderButton";
-import { useFonts } from 'expo-font';
 
 //  Expo-managed native modules (must install via `expo install`)
 import * as FileSystem from "expo-file-system";
@@ -28,10 +25,7 @@ export default function VideoScreen() {
   const router = useRouter();
   const { prompt } = useLocalSearchParams<{ prompt: string }>();
 
-  // Load custom fonts
-  const [fontsLoaded] = useFonts({
-    'ChelaOne-Regular': require('@/assets/fonts/ChelaOne-Regular.ttf'),
-  });  const [toast, setToast] = useState({
+  const [toast, setToast] = useState({
     visible: false,
     message: "",
     type: "success" as "success" | "error" | "warning",
@@ -283,8 +277,9 @@ export default function VideoScreen() {
           {/* Prompt Display */}
           {prompt && (
             <View style={styles.promptContainer}>
-              <Text style={[styles.promptLabel, { color: theme.text }]}>Generating video for:</Text>
-              <Text style={[styles.promptText, { color: theme.primary }]}>{prompt}</Text>
+              <Text style={[styles.promptText, { color: theme.text }]}>
+                Generating video for: <Text style={{ color: theme.primary, fontWeight: '600' }}>{prompt}</Text>
+              </Text>
             </View>
           )}
           
@@ -318,7 +313,6 @@ export default function VideoScreen() {
                           ...styles.progressCardText,
                           opacity: item.status === 'completed' ? 0.9 : 1,
                           fontWeight: item.status === 'active' ? '700' : '500',
-                          fontFamily: fontsLoaded ? 'ChelaOne-Regular' : 'System',
                           paddingLeft: item.status === 'completed' ? 30 : 15, // Make room for tick icon
                         }}
                       />

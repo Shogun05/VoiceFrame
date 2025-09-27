@@ -42,3 +42,4 @@ backend/__pycache__
 
 backend/scene_data.json
 backend/video.mp4
+venv/

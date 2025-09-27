@@ -35,7 +35,10 @@ yarn-error.*
 # typescript
 *.tsbuildinfo
 
-#backend
-backend/
+backend/audio
+backend/images
+backend/voices
+backend/__pycache__
 
-
+backend/scene_data.json
+backend/video.mp4

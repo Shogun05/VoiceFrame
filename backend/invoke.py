@@ -33,7 +33,8 @@ class InvokeClient:
     
     def __init__(self, background_prompt: str, character_prompts: List[str], 
                  host: str = "localhost", port: int = 9090,
-                 negative_prompt: str = DEFAULT_NEGATIVE_PROMPT):
+                 negative_prompt: str = DEFAULT_NEGATIVE_PROMPT,
+                 model_name: str = "dreamshaper xl v2 turbo"):
         """
         Initialize the InvokeAI client
         
@@ -43,23 +44,61 @@ class InvokeClient:
             host: InvokeAI server host
             port: InvokeAI server port
             negative_prompt: Negative prompt for all generations
+            model_name: Name of the model to use (case insensitive)
         """
-        self.base_url = f"http://{host}:{port}/api/v1"
+        self.base_url = f"http://{host}:{port}/api/v1" 
         self.queue_id = "default"
         self.background_prompt = background_prompt+", anime++, bold outline, cel-shaded coloring, shounen, seinen"
         self.character_prompts = [i + ", anime++, bold outline, cel-shaded coloring, shounen, seinen" for i in character_prompts]
         self.negative_prompt = negative_prompt
         
-        # Model configuration
-        self.model_config = {
-            "key": "66a6c100-2ba0-4720-a2e6-87c786471acd",
-            "hash": "blake3:d279309ea6e5ee6e8fd52504275865cc280dac71cbf528c5b07c98b888bddaba",
-            "name": "Dreamshaper XL v2 Turbo",
-            "base": "sdxl",
-            "type": "main"
-        }
+        # Fetch model configuration dynamically
+        self.model_config = self._fetch_model_config(model_name.lower())
+        if not self.model_config:
+            raise ValueError(f"Model '{model_name}' not found on InvokeAI server")
         
         print(f"✓ InvokeClient initialized for {self.base_url}")
+        print(f"✓ Using model: {self.model_config['name']} (key: {self.model_config['key']})")
+
+    def _fetch_model_config(self, model_name: str) -> Optional[dict]:
+        """
+        Fetch model configuration from InvokeAI API by matching model name
+        
+        Args:
+            model_name: Name of the model to search for (case insensitive)
+            
+        Returns:
+            Model configuration dictionary or None if not found
+        """
+        try:
+            # Fetch all models from the API
+            response = requests.get(f"{self.base_url[:-1]}2/models/", params={"model_type": "main"})
+            response.raise_for_status()
+            
+            models_data = response.json()
+            
+            # Search for matching model name
+            for model in models_data.get("models", []):
+                if model.get("name", "").lower() == model_name.lower():
+                    # Return the essential model config
+                    return {
+                        "key": model["key"],
+                        "hash": model.get("hash", ""),
+                        "name": model["name"],
+                        "base": model.get("base", ""),
+                        "type": model.get("type", "main")
+                    }
+            
+            print(f"✗ Model '{model_name}' not found. Available models:")
+            for model in models_data.get("models", []):
+                if model.get("type") == "main":
+                    print(f"  - {model.get('name', 'Unknown')}")
+            
+            return None
+            
+        except requests.exceptions.RequestException as e:
+            print(f"✗ Error fetching models from InvokeAI API: {e}")
+            return None
 
     def create_background_graph(self, prompt: str, width: int = 1024, height: int = 576) -> dict:
         """Create workflow graph for background generation"""

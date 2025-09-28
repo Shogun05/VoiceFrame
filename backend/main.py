@@ -43,6 +43,125 @@ class VideoRequest(BaseModel):
 def read_root():
     return {"Hello": "World"}
 
+@app.get("/test-invoke")
+async def test_invoke():
+    """Test route to test InvokeAI image generation with mock Gemini data"""
+    
+    # Mock Gemini result
+    mock_gemini_result = {
+        'scene': {
+            'background': {
+                'description': 'A whimsical cartoon-style riverbank with oversized lily pads and cattails. The water is a serene blue, and the sky is a soft, gradient yellow to orange, indicating late afternoon.',
+                'start': '00:00:00',
+                'end': '00:00:45'
+            },
+            'characters': [
+                {
+                    'name': 'Ferdinand the Frog',
+                    'appearance': 'A plump, cartoon-style green frog with big, friendly yellow eyes and a permanent wide smile. He wears a tiny red bow tie.',
+                    'gender': 'male'
+                },
+                {
+                    'name': 'Sterling the Scorpion',
+                    'appearance': 'A sleek, cartoon-style purple scorpion with a long, segmented tail ending in a comically oversized, harmless-looking stinger. He has four tiny, black, beady eyes and wears a small, crooked top hat.',
+                    'gender': 'male'
+                }
+            ],
+            'dialogues': [
+                {
+                    'character': 'Ferdinand the Frog',
+                    'start': '00:00:05',
+                    'end': '00:00:12',
+                    'line': "Good afternoon, Sterling! Lovely day for a swim, wouldn't you say?"
+                },
+                {
+                    'character': 'Sterling the Scorpion',
+                    'start': '00:00:15',
+                    'end': '00:00:22',
+                    'line': 'Indeed, Ferdinand. Though I, for one, prefer a leisurely stroll on dry land. The water, you see, is not quite my element.'
+                },
+                {
+                    'character': 'Ferdinand the Frog',
+                    'start': '00:00:25',
+                    'end': '00:00:33',
+                    'line': 'Ah, to each their own! But if you ever change your mind, these lily pads are quite comfortable for sunbathing.'
+                },
+                {
+                    'character': 'Sterling the Scorpion',
+                    'start': '00:00:36',
+                    'end': '00:00:43',
+                    'line': 'Perhaps one day, my amphibious friend. Perhaps one day.'
+                }
+            ]
+        }
+    }
+    
+    try:
+        # Clean up old files first
+        cleanup_directories()
+        
+        # Extract scene data
+        scene_data = mock_gemini_result.get('scene', {})
+        background_desc = scene_data.get('background', {}).get('description', '')
+        characters = scene_data.get('characters', [])
+        
+        print(f"Testing InvokeAI with:")
+        print(f"Background: {background_desc}")
+        print(f"Characters: {[char.get('name', 'Unknown') for char in characters]}")
+        
+        if background_desc and characters:
+            # Extract character prompts (appearances)
+            character_prompts = []
+            for char in characters:
+                appearance = char.get('appearance', '')
+                if appearance:
+                    character_prompts.append(appearance)
+            
+            print(f"Character prompts: {character_prompts}")
+            
+            # Create InvokeClient with test data
+            client = InvokeClient(
+                background_prompt=background_desc,
+                character_prompts=character_prompts
+            )
+            
+            # Generate the complete scene
+            print("Starting test image generation...")
+            final_image = client.generate_complete_scene()
+            
+            if final_image:
+                # Save the generated image
+                image_path = os.path.join(BASE_DIR, "images", "test_scene.png")
+                os.makedirs(os.path.dirname(image_path), exist_ok=True)
+                final_image.save(image_path)
+                print(f"Test image saved to: {image_path}")
+                
+                return {
+                    "status": "success",
+                    "message": "Test image generation completed successfully",
+                    "image_path": image_path,
+                    "scene_data": mock_gemini_result
+                }
+            else:
+                return {
+                    "status": "error",
+                    "message": "Failed to generate test image"
+                }
+        else:
+            return {
+                "status": "error",
+                "message": "Missing background description or characters in test data"
+            }
+            
+    except Exception as e:
+        print(f"Error during test image generation: {e}")
+        import traceback
+        traceback.print_exc()
+        return {
+            "status": "error",
+            "message": f"Test failed: {str(e)}"
+        }
+
 def cleanup_directories():
     """Removes old generated files and directories."""
     print("Cleaning up old files and directories...")

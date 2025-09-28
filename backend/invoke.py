@@ -57,8 +57,74 @@ class InvokeClient:
         if not self.model_config:
             raise ValueError(f"Model '{model_name}' not found on InvokeAI server")
         
+        # Fetch LoRA configuration
+        self.lora_config = self._fetch_lora_config("1990sCartoonsStyle_PXL_Leaf1")
+        
         print(f"✓ InvokeClient initialized for {self.base_url}")
         print(f"✓ Using model: {self.model_config['name']} (key: {self.model_config['key']})")
+        if self.lora_config:
+            print(f"✓ Using LoRA: {self.lora_config['name']} (key: {self.lora_config['key']})")
+        else:
+            print("⚠ LoRA 1990sCartoonsStyle_PXL_Leaf1 not found, continuing without LoRA")
+
+    def _get_model_node_config(self) -> dict:
+        """Get properly formatted model configuration for nodes"""
+        return {
+            "key": self.model_config["key"],
+            "hash": self.model_config.get("hash", ""),
+            "name": self.model_config["name"],
+            "base": self.model_config.get("base", ""),
+            "type": self.model_config.get("type", "main")
+        }
+
+    def _get_lora_node_config(self) -> dict:
+        """Get properly formatted LoRA configuration for nodes"""
+        if not self.lora_config:
+            return None
+        return {
+            "key": self.lora_config["key"],
+            "hash": self.lora_config.get("hash", ""),
+            "name": self.lora_config["name"],
+            "base": self.lora_config.get("base", ""),
+            "type": self.lora_config.get("type", "lora")
+        }
+
+    def _add_lora_to_graph(self, nodes: dict, edges: list) -> tuple:
+        """Add LoRA loader and proper connections to a graph"""
+        if not self.lora_config:
+            return nodes, edges
+        
+        # Add LoRA loader node
+        nodes["lora_loader"] = {
+            "id": "lora_loader",
+            "type": "lora_loader",
+            "lora": self._get_lora_node_config(),
+            "weight": 1.0
+        }
+        
+        # Remove direct model_loader -> denoise/compel connections
+        edges = [edge for edge in edges if not (
+            (edge["source"]["node_id"] == "model_loader" and edge["source"]["field"] in ["unet", "clip"]) and
+            edge["destination"]["node_id"] in ["denoise", "positive_compel", "negative_compel"]
+        )]
+        
+        # Add model_loader -> lora_loader connections (only unet and clip, no clip2 for LoRA)
+        edges.extend([
+            { "source": { "node_id": "model_loader", "field": "unet" }, "destination": { "node_id": "lora_loader", "field": "unet" } },
+            { "source": { "node_id": "model_loader", "field": "clip" }, "destination": { "node_id": "lora_loader", "field": "clip" } }
+        ])
+        
+        # Add lora_loader -> denoise/compel connections
+        edges.extend([
+            { "source": { "node_id": "lora_loader", "field": "unet" }, "destination": { "node_id": "denoise", "field": "unet" } },
+            { "source": { "node_id": "lora_loader", "field": "clip" }, "destination": { "node_id": "positive_compel", "field": "clip" } },
+            { "source": { "node_id": "lora_loader", "field": "clip" }, "destination": { "node_id": "negative_compel", "field": "clip" } }
+        ])
+        
+        # Keep clip2 connections direct from model_loader (LoRA doesn't modify clip2)
+        # These should already exist in the original edges, so we don't need to add them
+        
+        return nodes, edges
 
     def _fetch_model_config(self, model_name: str) -> Optional[dict]:
         """
@@ -100,151 +166,204 @@ class InvokeClient:
             print(f"✗ Error fetching models from InvokeAI API: {e}")
             return None
 
+    def _fetch_lora_config(self, lora_name: str) -> Optional[dict]:
+        """
+        Fetch LoRA configuration from InvokeAI API by matching LoRA name
+        
+        Args:
+            lora_name: Name of the LoRA to search for (case insensitive)
+            
+        Returns:
+            LoRA configuration dictionary or None if not found
+        """
+        try:
+            # Fetch all LoRA models from the API
+            response = requests.get(f"{self.base_url[:-1]}2/models/", params={"model_type": "lora"})
+            response.raise_for_status()
+            
+            models_data = response.json()
+            
+            # Search for matching LoRA name
+            for model in models_data.get("models", []):
+                if lora_name.lower() in model.get("name", "").lower():
+                    # Return the essential LoRA config
+                    return {
+                        "key": model["key"],
+                        "hash": model.get("hash", ""),
+                        "name": model["name"],
+                        "base": model.get("base", ""),
+                        "type": model.get("type", "lora"),
+                        "weight": 1.0  # Default weight
+                    }
+            
+            print(f"✗ LoRA '{lora_name}' not found. Available LoRAs:")
+            for model in models_data.get("models", []):
+                if model.get("type") == "lora":
+                    print(f"  - {model.get('name', 'Unknown')}")
+            
+            return None
+            
+        except requests.exceptions.RequestException as e:
+            print(f"✗ Error fetching LoRAs from InvokeAI API: {e}")
+            return None
+
     def create_background_graph(self, prompt: str, width: int = 1024, height: int = 576) -> dict:
         """Create workflow graph for background generation"""
         
-        graph = {
-            "nodes": {
-                "model_loader": {
-                    "id": "model_loader",
-                    "type": "sdxl_model_loader",
-                    "model": self.model_config
-                },
-                "positive_compel": {
-                    "id": "positive_compel",
-                    "type": "sdxl_compel_prompt",
-                    "prompt": prompt,
-                    "style": prompt,
-                },
-                "negative_compel": {
-                    "id": "negative_compel",
-                    "type": "sdxl_compel_prompt",
-                    "prompt": self.negative_prompt,
-                    "style": self.negative_prompt,
-                },
-                "noise": {
-                    "id": "noise",
-                    "type": "noise",
-                    "seed": random.randint(0, 2**32 - 1),
-                    "width": width,
-                    "height": height,
-                    "use_cpu": True
-                },
-                "denoise": {
-                    "id": "denoise",
-                    "type": "denoise_latents",
-                    "steps": 8,
-                    "cfg_scale": 2.0,
-                    "denoising_start": 0.0,
-                    "denoising_end": 1.0,
-                    "scheduler": "dpmpp_sde_k",
-                },
-                "latents_to_img": {
-                    "id": "latents_to_img",
-                    "type": "l2i",
-                    "fp32": True
-                }
+        nodes = {
+            "model_loader": {
+                "id": "model_loader",
+                "type": "sdxl_model_loader",
+                "model": self._get_model_node_config()
             },
-            "edges": [
-                { "source": { "node_id": "model_loader", "field": "unet" }, "destination": { "node_id": "denoise", "field": "unet" } },
-                { "source": { "node_id": "model_loader", "field": "clip" }, "destination": { "node_id": "positive_compel", "field": "clip" } },
-                { "source": { "node_id": "model_loader", "field": "clip2" }, "destination": { "node_id": "positive_compel", "field": "clip2" } },
-                { "source": { "node_id": "model_loader", "field": "clip" }, "destination": { "node_id": "negative_compel", "field": "clip" } },
-                { "source": { "node_id": "model_loader", "field": "clip2" }, "destination": { "node_id": "negative_compel", "field": "clip2" } },
-                { "source": { "node_id": "model_loader", "field": "vae" }, "destination": { "node_id": "latents_to_img", "field": "vae" } },
-                { "source": { "node_id": "positive_compel", "field": "conditioning" }, "destination": { "node_id": "denoise", "field": "positive_conditioning" } },
-                { "source": { "node_id": "negative_compel", "field": "conditioning" }, "destination": { "node_id": "denoise", "field": "negative_conditioning" } },
-                { "source": { "node_id": "noise", "field": "noise" }, "destination": { "node_id": "denoise", "field": "noise" } },
-                { "source": { "node_id": "denoise", "field": "latents" }, "destination": { "node_id": "latents_to_img", "field": "latents" } }
-            ]
+            "positive_compel": {
+                "id": "positive_compel",
+                "type": "sdxl_compel_prompt",
+                "prompt": prompt,
+                "style": prompt,
+            },
+            "negative_compel": {
+                "id": "negative_compel",
+                "type": "sdxl_compel_prompt",
+                "prompt": self.negative_prompt,
+                "style": self.negative_prompt,
+            },
+            "noise": {
+                "id": "noise",
+                "type": "noise",
+                "seed": random.randint(0, 2**32 - 1),
+                "width": width,
+                "height": height,
+                "use_cpu": True
+            },
+            "denoise": {
+                "id": "denoise",
+                "type": "denoise_latents",
+                "steps": 8,
+                "cfg_scale": 2.0,
+                "denoising_start": 0.0,
+                "denoising_end": 1.0,
+                "scheduler": "dpmpp_sde_k",
+            },
+            "latents_to_img": {
+                "id": "latents_to_img",
+                "type": "l2i",
+                "fp32": True
+            }
         }
-        return graph
+        
+        edges = [
+            { "source": { "node_id": "model_loader", "field": "unet" }, "destination": { "node_id": "denoise", "field": "unet" } },
+            { "source": { "node_id": "model_loader", "field": "clip" }, "destination": { "node_id": "positive_compel", "field": "clip" } },
+            { "source": { "node_id": "model_loader", "field": "clip2" }, "destination": { "node_id": "positive_compel", "field": "clip2" } },
+            { "source": { "node_id": "model_loader", "field": "clip" }, "destination": { "node_id": "negative_compel", "field": "clip" } },
+            { "source": { "node_id": "model_loader", "field": "clip2" }, "destination": { "node_id": "negative_compel", "field": "clip2" } },
+            { "source": { "node_id": "model_loader", "field": "vae" }, "destination": { "node_id": "latents_to_img", "field": "vae" } },
+            { "source": { "node_id": "positive_compel", "field": "conditioning" }, "destination": { "node_id": "denoise", "field": "positive_conditioning" } },
+            { "source": { "node_id": "negative_compel", "field": "conditioning" }, "destination": { "node_id": "denoise", "field": "negative_conditioning" } },
+            { "source": { "node_id": "noise", "field": "noise" }, "destination": { "node_id": "denoise", "field": "noise" } },
+            { "source": { "node_id": "denoise", "field": "latents" }, "destination": { "node_id": "latents_to_img", "field": "latents" } }
+        ]
+        
+        # Apply LoRA if available using helper method
+        nodes, edges = self._add_lora_to_graph(nodes, edges)
+        
+        return {
+            "nodes": nodes,
+            "edges": edges
+        }
 
     def create_inpainting_graph(self, input_image_name: str, mask_image_name: str, 
                                prompt: str, image_width: int, image_height: int) -> dict:
         """Create workflow graph for inpainting"""
         
-        graph = {
-            "nodes": {
-                "model_loader": {
-                    "id": "model_loader",
-                    "type": "sdxl_model_loader",
-                    "model": self.model_config
-                },
-                "positive_compel": {
-                    "id": "positive_compel",
-                    "type": "sdxl_compel_prompt",
-                    "prompt": prompt,
-                    "style": prompt,
-                },
-                "negative_compel": {
-                    "id": "negative_compel",
-                    "type": "sdxl_compel_prompt",
-                    "prompt": self.negative_prompt,
-                    "style": self.negative_prompt,
-                },
-                "input_image": {
-                    "id": "input_image",
-                    "type": "image",
-                    "image": { "image_name": input_image_name }
-                },
-                "mask_image": {
-                    "id": "mask_image",
-                    "type": "image",
-                    "image": { "image_name": mask_image_name }
-                },
-                "noise": {
-                    "id": "noise",
-                    "type": "noise",
-                    "seed": random.randint(0, 2**32 - 1),
-                    "width": image_width,
-                    "height": image_height,
-                    "use_cpu": True
-                },
-                "i2l": {
-                    "id": "i2l",
-                    "type": "i2l",
-                },
-                "create_denoise_mask": {
-                    "id": "create_denoise_mask",
-                    "type": "create_denoise_mask",
-                    "fp32": True,
-                },
-                "denoise": {
-                    "id": "denoise",
-                    "type": "denoise_latents",
-                    "steps": 8,
-                    "cfg_scale": 2.0,
-                    "denoising_start": 0.0,
-                    "denoising_end": 1.0,
-                    "scheduler": "dpmpp_sde_k",
-                },
-                "latents_to_img": {
-                    "id": "latents_to_img",
-                    "type": "l2i",
-                    "fp32": True
-                }
+        nodes = {
+            "model_loader": {
+                "id": "model_loader",
+                "type": "sdxl_model_loader",
+                "model": self._get_model_node_config()
             },
-            "edges": [
-                { "source": { "node_id": "model_loader", "field": "unet" }, "destination": { "node_id": "denoise", "field": "unet" } },
-                { "source": { "node_id": "model_loader", "field": "clip" }, "destination": { "node_id": "positive_compel", "field": "clip" } },
-                { "source": { "node_id": "model_loader", "field": "clip2" }, "destination": { "node_id": "positive_compel", "field": "clip2" } },
-                { "source": { "node_id": "model_loader", "field": "clip" }, "destination": { "node_id": "negative_compel", "field": "clip" } },
-                { "source": { "node_id": "model_loader", "field": "clip2" }, "destination": { "node_id": "negative_compel", "field": "clip2" } },
-                { "source": { "node_id": "model_loader", "field": "vae" }, "destination": { "node_id": "i2l", "field": "vae" } },
-                { "source": { "node_id": "model_loader", "field": "vae" }, "destination": { "node_id": "create_denoise_mask", "field": "vae" } },
-                { "source": { "node_id": "model_loader", "field": "vae" }, "destination": { "node_id": "latents_to_img", "field": "vae" } },
-                { "source": { "node_id": "positive_compel", "field": "conditioning" }, "destination": { "node_id": "denoise", "field": "positive_conditioning" } },
-                { "source": { "node_id": "negative_compel", "field": "conditioning" }, "destination": { "node_id": "denoise", "field": "negative_conditioning" } },
-                { "source": { "node_id": "noise", "field": "noise" }, "destination": { "node_id": "denoise", "field": "noise" } },
-                { "source": { "node_id": "input_image", "field": "image" }, "destination": { "node_id": "i2l", "field": "image" } },
-                { "source": { "node_id": "i2l", "field": "latents" }, "destination": { "node_id": "denoise", "field": "latents" } },
-                { "source": { "node_id": "mask_image", "field": "image" }, "destination": { "node_id": "create_denoise_mask", "field": "mask" } },
-                { "source": { "node_id": "create_denoise_mask", "field": "denoise_mask" }, "destination": { "node_id": "denoise", "field": "denoise_mask" } },
-                { "source": { "node_id": "denoise", "field": "latents" }, "destination": { "node_id": "latents_to_img", "field": "latents" } }
-            ]
+            "positive_compel": {
+                "id": "positive_compel",
+                "type": "sdxl_compel_prompt",
+                "prompt": prompt,
+                "style": prompt,
+            },
+            "negative_compel": {
+                "id": "negative_compel",
+                "type": "sdxl_compel_prompt",
+                "prompt": self.negative_prompt,
+                "style": self.negative_prompt,
+            },
+            "input_image": {
+                "id": "input_image",
+                "type": "image",
+                "image": { "image_name": input_image_name }
+            },
+            "mask_image": {
+                "id": "mask_image",
+                "type": "image",
+                "image": { "image_name": mask_image_name }
+            },
+            "noise": {
+                "id": "noise",
+                "type": "noise",
+                "seed": random.randint(0, 2**32 - 1),
+                "width": image_width,
+                "height": image_height,
+                "use_cpu": True
+            },
+            "i2l": {
+                "id": "i2l",
+                "type": "i2l",
+            },
+            "create_denoise_mask": {
+                "id": "create_denoise_mask",
+                "type": "create_denoise_mask",
+                "fp32": True,
+            },
+            "denoise": {
+                "id": "denoise",
+                "type": "denoise_latents",
+                "steps": 8,
+                "cfg_scale": 2.0,
+                "denoising_start": 0.0,
+                "denoising_end": 1.0,
+                "scheduler": "dpmpp_sde_k",
+            },
+            "latents_to_img": {
+                "id": "latents_to_img",
+                "type": "l2i",
+                "fp32": True
+            }
         }
-        return graph
+        
+        edges = [
+            { "source": { "node_id": "model_loader", "field": "unet" }, "destination": { "node_id": "denoise", "field": "unet" } },
+            { "source": { "node_id": "model_loader", "field": "clip" }, "destination": { "node_id": "positive_compel", "field": "clip" } },
+            { "source": { "node_id": "model_loader", "field": "clip2" }, "destination": { "node_id": "positive_compel", "field": "clip2" } },
+            { "source": { "node_id": "model_loader", "field": "clip" }, "destination": { "node_id": "negative_compel", "field": "clip" } },
+            { "source": { "node_id": "model_loader", "field": "clip2" }, "destination": { "node_id": "negative_compel", "field": "clip2" } },
+            { "source": { "node_id": "model_loader", "field": "vae" }, "destination": { "node_id": "i2l", "field": "vae" } },
+            { "source": { "node_id": "model_loader", "field": "vae" }, "destination": { "node_id": "create_denoise_mask", "field": "vae" } },
+            { "source": { "node_id": "model_loader", "field": "vae" }, "destination": { "node_id": "latents_to_img", "field": "vae" } },
+            { "source": { "node_id": "positive_compel", "field": "conditioning" }, "destination": { "node_id": "denoise", "field": "positive_conditioning" } },
+            { "source": { "node_id": "negative_compel", "field": "conditioning" }, "destination": { "node_id": "denoise", "field": "negative_conditioning" } },
+            { "source": { "node_id": "noise", "field": "noise" }, "destination": { "node_id": "denoise", "field": "noise" } },
+            { "source": { "node_id": "input_image", "field": "image" }, "destination": { "node_id": "i2l", "field": "image" } },
+            { "source": { "node_id": "i2l", "field": "latents" }, "destination": { "node_id": "denoise", "field": "latents" } },
+            { "source": { "node_id": "mask_image", "field": "image" }, "destination": { "node_id": "create_denoise_mask", "field": "mask" } },
+            { "source": { "node_id": "create_denoise_mask", "field": "denoise_mask" }, "destination": { "node_id": "denoise", "field": "denoise_mask" } },
+            { "source": { "node_id": "denoise", "field": "latents" }, "destination": { "node_id": "latents_to_img", "field": "latents" } }
+        ]
+        
+        # Apply LoRA if available using helper method
+        nodes, edges = self._add_lora_to_graph(nodes, edges)
+        
+        return {
+            "nodes": nodes,
+            "edges": edges
+        }
 
     def upload_image(self, image: Union[str, Image.Image], category: str = "general") -> dict:
         """Upload an image to InvokeAI and return the response"""
@@ -308,11 +427,22 @@ class InvokeClient:
     def execute_workflow(self, workflow_data: dict, graph: dict) -> Optional[Image.Image]:
         """Execute a workflow and return the generated image"""
         
+        # Convert nodes dict to the expected format where each node has proper structure
+        formatted_nodes = {}
+        for node_id, node_data in graph["nodes"].items():
+            formatted_nodes[node_id] = {
+                **node_data,
+                "is_intermediate": False,
+                "use_cache": True
+            }
+        
         payload = {
             "batch": {
+                "batch_id": str(uuid.uuid4()),
+                "data": [],  # Empty data array for simple execution
                 "graph": {
                     "id": str(uuid.uuid4()),
-                    "nodes": graph["nodes"],
+                    "nodes": formatted_nodes,
                     "edges": graph["edges"]
                 },
                 "workflow": workflow_data['workflow'],
@@ -321,8 +451,17 @@ class InvokeClient:
         }
         
         try:
+            # Debug: Print payload structure
+            print(f"Sending payload with {len(formatted_nodes)} nodes and {len(graph['edges'])} edges")
+            print(f"Node types: {[node.get('type', 'unknown') for node in formatted_nodes.values()]}")
+            
             # Enqueue workflow
             response = requests.post(f"{self.base_url}/queue/{self.queue_id}/enqueue_batch", json=payload)
+            
+            if response.status_code == 422:
+                print(f"✗ Validation error (422): {response.text}")
+                return None
+                
             response.raise_for_status()
             enqueue_result = response.json()
             

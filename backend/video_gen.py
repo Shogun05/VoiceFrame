@@ -513,7 +513,7 @@ class VoiceFrameVideoGenerator:
                                 
                                 # Save the sped-up audio back to the original file  
                                 temp_audio_path = audio_file.replace('.wav', '_temp.wav')
-                                sped_up_audio.write_audiofile(temp_audio_path, verbose=False, logger=None)
+                                sped_up_audio.write_audiofile(temp_audio_path, logger=None)
                                 
                                 # Replace original file with sped-up version
                                 import shutil

@@ -3,6 +3,64 @@
 ## Project Overview
 VoiceFrame is a full-stack AI-powered video generation platform that creates videos with synchronized dialogue from text prompts. The system uses multiple AI services including Google Gemini for script generation, Stable Diffusion for image generation, voice synthesis for audio, and MoviePy for video assembly.
 
+
+## Setup
+1. Install uv: https://docs.astral.sh/uv/getting-started/installation/
+2. Install npm: https://nodejs.org/en/download
+3. [Setup Invoke](#invoke-setup-details)
+4. [Setup project](#project-setup)
+5. [Environment configuration](#environment-configuration)
+6. [Voices Setup](#voices-setup)
+
+## Invoke Setup Details:
+1. Run the binary downloaded above
+2. Go ahead and install it in any location (The location of installation does not matter)
+3. After installation is complete, hit Launch to begin InvokeAI desktop application. 
+4. Navigate to `Models` tab and at the top right corner of the screen, find the `Starter Models`.
+5. Inside `Starter Models` install the `DreamShaper XL v2 Turbo`
+6. Download the LoRA Model from this link: https://drive.google.com/file/d/1fXbewulnWMrup0AEylBXK5_J10oOw0nZ/view?usp=sharing
+7. Place the download in a known location and copy the parent folder path
+8. While being in the `Models` tab in the InvokeAI, Navigate to the `Scan Folder` option, beside, to the `Starter Models`, add in the path of the parent directory containing the LoRA and hit scan
+9. You will see the LoRA `1990sCartoonsStyle_PXL_Leaf1.safetensors`. Installing that completes the setup required for image generation. Make sure to keep InvokeAI on henceforth when testing.
+
+## Project Setup
+1. Git clone this project using the command: 
+```bash
+git clone https://github.com/Shogun05/VoiceFrame.git
+```
+2. Navigate to the downloaded repo, head into the `backend` folder and create the files: 
+   a. `.env`
+   b. Directory (case-sensitive): `voices` with two more sub directories inside `voices` named (again, case-sensitive): `male` and `female`
+
+### Environment Configuration
+Grab your API key from here: https://aistudio.google.com/api-keys
+
+Create a `.env` file in the `backend` directory with:
+```bash
+GEMINI_API_KEY=your_gemini_api_key_here
+```
+
+## Voices setup
+1. Get yourself some voices that you prefer from: https://huggingface.co/rhasspy/piper-voices
+2. Correspondingly place the male and female voices in their respective directories so that the final directory strucutre looks something like this (We recommend `hfc_female` and `hfc_male`): 
+voices
+├── female
+│   ├── en_US-amy-low.onnx
+│   └── en_US-amy-low.onnx.json
+└── male
+    ├── en_US-joe-medium.onnx
+    └── en_US-joe-medium.onnx.json
+
+## Frontend Setup
+Navigate to `/frontend-app` from the root of the repo. 
+```bash
+npm i         # install dependencies
+npm run dev   # run the expo app
+```
+
+(Optional) Set up Android Studio with Android Virtual Device downloaded during installation and you shall be able to use the Expo project on mobile.
+
+---
 ## Architecture Overview
 
 ### Frontend (React Native with Expo)
@@ -23,6 +81,7 @@ VoiceFrame is a full-stack AI-powered video generation platform that creates vid
   - Voice synthesis for audio generation
   - MoviePy for video assembly
 
+---
 ## System Flow
 
 ### 1. User Input Processing
@@ -201,36 +260,7 @@ SPEECH_BUBBLE_CONFIGS = {
     }
 }
 ```
-
-## Directory Structure
-```
-VoiceFrame/
-├── frontend-app/
-│   ├── app/
-│   │   ├── video.tsx                 # Main video interface
-│   │   └── (tabs)/
-│   │       └── index.tsx             # Home screen
-│   ├── components/
-│   │   ├── FadingBorderButton.tsx    # Custom button component
-│   │   ├── LoadingIndicator.tsx      # Loading component
-│   │   └── Toast.tsx                 # Notification component
-│   ├── contexts/
-│   │   └── ThemeContext.tsx          # Theme management
-│   └── assets/
-│       └── fonts/                    # Custom fonts (optional)
-├── backend/
-│   ├── main.py                       # FastAPI server
-│   ├── gemini_client.py             # Gemini AI integration
-│   ├── invoke.py                    # InvokeAI integration
-│   ├── voice_generation.py         # Voice synthesis
-│   ├── video_gen.py                # Video assembly
-│   ├── images/                     # Generated images
-│   ├── audio/                      # Generated audio files
-│   ├── voices/                     # Voice model files
-│   └── video.mp4                   # Final output video
-└── .env                            # Environment variables
-```
-
+---
 ## Technical Implementation Details
 
 ### WebSocket Progress System
@@ -259,24 +289,12 @@ VoiceFrame/
 - **Speech Bubbles**: Custom-drawn rounded rectangles with tails
 - **Fade Transitions**: Smooth fade in/out for dialogue overlays
 
-## Environment Configuration
 
-### Backend Requirements
-```
-GEMINI_API_KEY=your_gemini_api_key_here
-```
 
 ### Dependencies
 - **Frontend**: React Native, Expo SDK, TypeScript
 - **Backend**: FastAPI, MoviePy, PIL, Google Gemini API, InvokeAI
 - **AI Services**: Gemini API key, local InvokeAI installation
-
-### Development Setup
-1. Backend: `pip install -r requirements.txt`
-2. Frontend: `npm install`
-3. Configure `.env` with API keys
-4. Start backend: `uvicorn main:app --reload`
-5. Start frontend: `npx expo start`
 
 ## API Endpoints
 

@@ -1,5 +1,5 @@
-from fastapi import FastAPI, Response, WebSocket, WebSocketDisconnect
-from fastapi.responses import StreamingResponse
+from fastapi import FastAPI, Response, WebSocket, WebSocketDisconnect, UploadFile, File
+from fastapi.responses import StreamingResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 import os
 import json
@@ -9,6 +9,8 @@ from invoke import InvokeClient
 from gemini_client import GeminiClient
 from video_gen import generate_video_from_scene_data, SPEECH_BUBBLE_CONFIGS
 from voice_generation import VoiceSynthesizer
+import shutil
+from faster_whisper import WhisperModel
 
 # Load environment variables from .env file
 load_dotenv()
@@ -23,7 +25,13 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # --- FastAPI App and Gemini Client Initialization ---
 app = FastAPI()
-gemini_client = GeminiClient(api_key=GEMINI_API_KEY)
+
+# --- Initialize Local Whisper Model ---
+# This loads the model into memory once when the server starts.
+# "tiny.en" is small and fast. Other options: "base.en", "small.en", "medium.en"
+print("Loading local Whisper model...")
+whisper_model = WhisperModel("tiny.en", device="cpu", compute_type="int8")
+print("Whisper model loaded.")
 
 # Add CORS middleware
 app.add_middleware(
@@ -38,7 +46,38 @@ app.add_middleware(
 class VideoRequest(BaseModel):
     prompt: str
 
-# --- Helper Functions ---
+# --- NEW TRANSCRIBE ENDPOINT (LOCAL) ---
+@app.post("/transcribe")
+async def transcribe_audio(file: UploadFile = File(...)):
+    """Receives an audio file and transcribes it using a local Whisper model."""
+    temp_path = os.path.join(BASE_DIR, f"temp_{file.filename}")
+    try:
+        # Save the uploaded file temporarily
+        with open(temp_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+
+        # Transcribe the audio file
+        segments, info = whisper_model.transcribe(temp_path, beam_size=5)
+
+        # Combine all transcribed segments into a single string
+        transcription_parts = [segment.text for segment in segments]
+        transcription = "".join(transcription_parts)
+
+        print(f"Transcription successful: {transcription.strip()}")
+        return {"transcription": transcription.strip()}
+
+    except Exception as e:
+        print(f"Error during transcription: {e}")
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(status_code=500, content={"detail": f"Transcription failed: {str(e)}"})
+    finally:
+        # Clean up the temporary file
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+
+
+# --- Helper Functions & Existing Routes ---
 @app.get("/")
 def read_root():
     return {"Hello": "World"}
@@ -46,7 +85,7 @@ def read_root():
 @app.get("/test-invoke")
 async def test_invoke():
     """Test route to test InvokeAI image generation with mock Gemini data"""
-    
+
     # Mock Gemini result
     mock_gemini_result = {
         'scene': {
@@ -95,20 +134,20 @@ async def test_invoke():
             ]
         }
     }
-    
+
     try:
         # Clean up old files first
         cleanup_directories()
-        
+
         # Extract scene data
         scene_data = mock_gemini_result.get('scene', {})
         background_desc = scene_data.get('background', {}).get('description', '')
         characters = scene_data.get('characters', [])
-        
+
         print(f"Testing InvokeAI with:")
         print(f"Background: {background_desc}")
         print(f"Characters: {[char.get('name', 'Unknown') for char in characters]}")
-        
+
         if background_desc and characters:
             # Extract character prompts (appearances)
             character_prompts = []
@@ -116,26 +155,26 @@ async def test_invoke():
                 appearance = char.get('appearance', '')
                 if appearance:
                     character_prompts.append(appearance)
-            
+
             print(f"Character prompts: {character_prompts}")
-            
+
             # Create InvokeClient with test data
             client = InvokeClient(
                 background_prompt=background_desc,
                 character_prompts=character_prompts
             )
-            
+
             # Generate the complete scene
             print("Starting test image generation...")
             final_image = client.generate_complete_scene()
-            
+
             if final_image:
                 # Save the generated image
                 image_path = os.path.join(BASE_DIR, "images", "test_scene.png")
                 os.makedirs(os.path.dirname(image_path), exist_ok=True)
                 final_image.save(image_path)
                 print(f"Test image saved to: {image_path}")
-                
+
                 return {
                     "status": "success",
                     "message": "Test image generation completed successfully",
@@ -152,7 +191,7 @@ async def test_invoke():
                 "status": "error",
                 "message": "Missing background description or characters in test data"
             }
-            
+
     except Exception as e:
         print(f"Error during test image generation: {e}")
         import traceback
@@ -165,26 +204,20 @@ async def test_invoke():
 def cleanup_directories():
     """Removes old generated files and directories."""
     print("Cleaning up old files and directories...")
-    
+
     import shutil
     image_folder = os.path.join(BASE_DIR, 'images')
     audio_folder = os.path.join(BASE_DIR, 'audio')
     output_video_path = os.path.join(BASE_DIR, 'video.mp4')
-    
+
     if os.path.exists(image_folder):
         shutil.rmtree(image_folder)
     if os.path.exists(audio_folder):
         shutil.rmtree(audio_folder)
     if os.path.exists(output_video_path):
         os.remove(output_video_path)
-    
+
     print("Cleanup complete.")
-
-# Helper functions moved to video_gen module
-
-# Border creation is now handled by video_gen module
-
-# Old video generation function removed - now handled by video_gen module
 
 async def generate_images_from_scene(gemini_result, websocket=None):
     """Generate images based on the Gemini scene data with progress updates"""

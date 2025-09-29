@@ -43,6 +43,7 @@ GEMINI_API_KEY=your_gemini_api_key_here
 ## Voices setup
 1. Get yourself some voices that you prefer from: https://huggingface.co/rhasspy/piper-voices
 2. Correspondingly place the male and female voices in their respective directories so that the final directory strucutre looks something like this (We recommend `hfc_female` and `hfc_male`): 
+```
 voices
 ├── female
 │   ├── en_US-amy-low.onnx
@@ -50,6 +51,7 @@ voices
 └── male
     ├── en_US-joe-medium.onnx
     └── en_US-joe-medium.onnx.json
+```
 
 ## Frontend Setup
 Navigate to `/frontend-app` from the root of the repo. 
@@ -81,6 +83,7 @@ npm run dev   # run the expo app
   - Voice synthesis for audio generation
   - MoviePy for video assembly
 
+---
 ---
 ## System Flow
 
@@ -260,6 +263,7 @@ SPEECH_BUBBLE_CONFIGS = {
     }
 }
 ```
+---
 ---
 ## Technical Implementation Details
 

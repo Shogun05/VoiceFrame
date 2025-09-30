@@ -53,24 +53,30 @@ class ImprovedTextRenderer:
     
     def _wrap_text(self, text: str, font, max_width: int) -> list:
         """Wrap text to fit within max_width with accurate measurements"""
+        # First check if the entire text fits without wrapping
+        full_text_width, _ = self._get_text_dimensions(text, font)
+        if full_text_width <= max_width:
+            return [text]
+
+        # If not, wrap word by word
         words = text.split()
         lines = []
         current_line = ""
-        
+
         for word in words:
             test_line = current_line + " " + word if current_line else word
             text_width, _ = self._get_text_dimensions(test_line, font)
-            
+
             if text_width <= max_width:
                 current_line = test_line
             else:
                 if current_line:
                     lines.append(current_line)
                 current_line = word
-        
+
         if current_line:
             lines.append(current_line)
-        
+
         return lines
     
     def create_speech_bubble(self, text: str, max_width: int, 
@@ -120,7 +126,9 @@ class ImprovedTextRenderer:
             actual_text_width = max(actual_text_width, line_width)
         
         # Calculate bubble dimensions based on actual text size
-        bubble_width = actual_text_width + (2 * padding)
+        # Add minimum width to prevent narrow bubbles for short text
+        min_bubble_width = 150  # Minimum width for aesthetic purposes
+        bubble_width = max(actual_text_width + (2 * padding), min_bubble_width)
         bubble_height = text_height + (2 * padding)
         
         # Add space for tail if needed

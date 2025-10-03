@@ -52,7 +52,12 @@ voices
     ├── en_US-joe-medium.onnx
     └── en_US-joe-medium.onnx.json
 ```
-
+## Backend Setup
+Navigate to `/backend` from the root of the repo.  
+```bash
+uv sync                             # install and sync dependencies
+uv run python -m uvicorn main:app --port 8000   # start the backend server
+```
 ## Frontend Setup
 Navigate to `/frontend-app` from the root of the repo. 
 ```bash

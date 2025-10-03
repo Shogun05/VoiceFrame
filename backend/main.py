@@ -2,7 +2,6 @@ from fastapi import FastAPI, Response, WebSocket, WebSocketDisconnect, UploadFil
 from fastapi.responses import StreamingResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 import os
-import json
 from pydantic import BaseModel
 from dotenv import load_dotenv
 from invoke import InvokeClient
@@ -11,6 +10,10 @@ from video_gen import generate_video_from_scene_data, SPEECH_BUBBLE_CONFIGS
 from voice_generation import VoiceSynthesizer
 import shutil
 from faster_whisper import WhisperModel
+import traceback
+import shutil
+import concurrent.futures
+import time
 
 # Load environment variables from .env file
 load_dotenv()
@@ -25,6 +28,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # --- FastAPI App and Gemini Client Initialization ---
 app = FastAPI()
+gemini_client = GeminiClient(api_key=GEMINI_API_KEY)
 
 # --- Initialize Local Whisper Model ---
 # This loads the model into memory once when the server starts.
@@ -68,7 +72,7 @@ async def transcribe_audio(file: UploadFile = File(...)):
 
     except Exception as e:
         print(f"Error during transcription: {e}")
-        import traceback
+        
         traceback.print_exc()
         return JSONResponse(status_code=500, content={"detail": f"Transcription failed: {str(e)}"})
     finally:
@@ -194,7 +198,6 @@ async def test_invoke():
 
     except Exception as e:
         print(f"Error during test image generation: {e}")
-        import traceback
         traceback.print_exc()
         return {
             "status": "error",
@@ -205,7 +208,7 @@ def cleanup_directories():
     """Removes old generated files and directories."""
     print("Cleaning up old files and directories...")
 
-    import shutil
+    
     image_folder = os.path.join(BASE_DIR, 'images')
     audio_folder = os.path.join(BASE_DIR, 'audio')
     output_video_path = os.path.join(BASE_DIR, 'video.mp4')
@@ -264,8 +267,7 @@ async def generate_images_from_scene(gemini_result, websocket=None):
             print("Generating complete scene with InvokeClient...")
             
             # Run the image generation in a thread to avoid blocking
-            import asyncio
-            import concurrent.futures
+            
             
             with concurrent.futures.ThreadPoolExecutor() as executor:
                 future = executor.submit(client.generate_complete_scene)
@@ -381,9 +383,6 @@ async def websocket_progress(websocket: WebSocket):
                     print(f"Synthesizing {len(dialogues)} dialogue lines for {len(characters)} characters")
                     
                     # Run voice synthesis in a thread to allow progress updates
-                    import asyncio
-                    import concurrent.futures
-                    
                     with concurrent.futures.ThreadPoolExecutor() as executor:
                         voice_future = executor.submit(synthesizer.synthesize_dialogues, dialogues, characters)
                         
@@ -403,7 +402,6 @@ async def websocket_progress(websocket: WebSocket):
                 print(f"Available directories in {BASE_DIR}: {[d for d in os.listdir(BASE_DIR) if os.path.isdir(os.path.join(BASE_DIR, d))]}")
         except Exception as e:
             print(f"Error during voice synthesis: {e}")
-            import traceback
             traceback.print_exc()
             # Continue without audio - video generation can still work
         
@@ -451,9 +449,6 @@ async def websocket_progress(websocket: WebSocket):
         print(f"Using speech bubble config: modern_bubbles")
         
         # Run video generation in a thread
-        import asyncio
-        import concurrent.futures
-        
         with concurrent.futures.ThreadPoolExecutor() as executor:
             video_future = executor.submit(
                 generate_video_from_scene_data,
@@ -476,7 +471,6 @@ async def websocket_progress(websocket: WebSocket):
             return
         
         # Generate unique video ID (use timestamp for now)
-        import time
         video_id = f"video_{int(time.time())}"
         
         # Send completion with video_id

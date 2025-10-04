@@ -604,13 +604,34 @@ class VoiceFrameVideoGenerator:
                                 sped_up_audio.close()
                                 
                                 print(f"  Saved sped-up audio to {audio_file}, new duration: {audio_clip.duration:.2f}s")
+                            else:
+                                # Audio is too short - pad with silence
+                                silence_duration = expected_duration - actual_duration
+                                print(f"  Audio is {silence_duration:.2f}s too short, will be padded during composition")
+                                # Note: We'll handle short audio by letting MoviePy handle it naturally
                         
                         # Set the start time for this audio clip using MoviePy 2.x API
                         audio_clip = audio_clip.with_start(start_sec)
                         synchronized_audio_clips.append(audio_clip)
                     
+                    # Handle gaps between dialogues by adding silence
+                    final_audio_clips = []
+                    
+                    for i, audio_clip in enumerate(synchronized_audio_clips):
+                        final_audio_clips.append(audio_clip)
+                        
+                        # Check if there's a gap before the next dialogue
+                        if i < len(synchronized_audio_clips) - 1:
+                            current_end = self.convert_time_to_seconds(dialogues[i]['end'])
+                            next_start = self.convert_time_to_seconds(dialogues[i+1]['start'])
+                            gap_duration = next_start - current_end
+                            
+                            if gap_duration > 0.1:  # If gap > 0.1 seconds
+                                print(f"  Gap of {gap_duration:.2f}s detected between dialogues {i+1} and {i+2}")
+                                # Note: Gaps will be handled naturally by CompositeAudioClip positioning
+                    
                     # Combine all audio clips
-                    combined_audio = CompositeAudioClip(synchronized_audio_clips)
+                    combined_audio = CompositeAudioClip(final_audio_clips)
                     
                     # Create final composite with synchronized audio
                     final_clip = CompositeVideoClip(all_clips, size=(W, H)).with_audio(combined_audio)
@@ -769,16 +790,17 @@ def generate_video_from_scene_data(base_dir: str, scene_data: Dict,
     return generator.generate_simple_video(copyright_text=copyright_text)
 
 
-def generate_simple_video_from_images(base_dir: str, duration: float = 15.0) -> bool:
+def generate_simple_video_from_images(base_dir: str, duration: float = 15.0, copyright_text: str = "© 2025 All Rights Reserved") -> bool:
     """
     Generate simple video from images (fallback function)
     
     Args:
         base_dir: Base directory containing images
         duration: Video duration
+        copyright_text: Text for copyright watermark
     
     Returns:
         bool: True if successful, False otherwise
     """
     generator = VoiceFrameVideoGenerator(base_dir)
-    return generator.generate_simple_video(duration)
+    return generator.generate_simple_video(duration, copyright_text)

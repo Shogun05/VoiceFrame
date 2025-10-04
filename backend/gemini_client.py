@@ -24,7 +24,7 @@ You are an expert children's story creator specializing in cartoon-style narrati
 
 KEY REQUIREMENTS:
 - Generate 8-12 dialogues per story
-- Make characters distinct and memorable with unique personalities
+- Give character description to be as simplistic as possible. No adjectives or adverbs
 - Use vivid, cartoon-style descriptions with bright colors and fun details
 - Keep content appropriate for children (ages 4-10)
 - Include natural conversation flow with emotional expressions
@@ -34,8 +34,8 @@ KEY REQUIREMENTS:
 
 STYLE EXAMPLES:
 - Background: "A magical rainbow bridge spanning across fluffy white clouds, with golden stars twinkling in a lavender sky and cotton candy trees swaying gently"
-- Character: "A yellow cat with a blue striped scarf, green eyes, tiny red boots on each paw, silver bell on collar"
-- Dialogue: Natural, friendly conversation that moves the story forward with emotion and personality
+- Character: "one, yellow cat, blue striped scarf, green eyes, wearing red boots, silver bell collar"
+- Dialogue: No emotions in brackets. Just the line.
 (Note: Keep the character prompts no nonsense, like no adjectives just the description of the objects themselves as the above example. Use just basic emotions like happy, sad, angry)
 
 STORY STRUCTURE GUIDELINES:
@@ -56,6 +56,7 @@ Remember: Every story should be uplifting, educational, and spark imagination wh
 
             generate_content_config = types.GenerateContentConfig(
                 response_mime_type="application/json",
+                max_output_tokens=8192,
                 max_output_tokens=8192,
                 response_schema=genai.types.Schema(
                     type=genai.types.Type.OBJECT,
@@ -142,6 +143,7 @@ Remember: Every story should be uplifting, educational, and spark imagination wh
 
             response = self.client.models.generate_content(
                 model=self.model,
+                contents=enhanced_prompt,
                 contents=enhanced_prompt,
                 config=generate_content_config,
             )

@@ -2,6 +2,7 @@
 Video Generator Module for VoiceFrame
 Converts scene data, generated images, and audio files into videos with text overlays
 Uses PIL and OpenCV instead of ImageMagick for better compatibility
+Now includes copyright watermark functionality
 """
 
 import os
@@ -53,24 +54,30 @@ class ImprovedTextRenderer:
     
     def _wrap_text(self, text: str, font, max_width: int) -> list:
         """Wrap text to fit within max_width with accurate measurements"""
+        # First check if the entire text fits without wrapping
+        full_text_width, _ = self._get_text_dimensions(text, font)
+        if full_text_width <= max_width:
+            return [text]
+
+        # If not, wrap word by word
         words = text.split()
         lines = []
         current_line = ""
-        
+
         for word in words:
             test_line = current_line + " " + word if current_line else word
             text_width, _ = self._get_text_dimensions(test_line, font)
-            
+
             if text_width <= max_width:
                 current_line = test_line
             else:
                 if current_line:
                     lines.append(current_line)
                 current_line = word
-        
+
         if current_line:
             lines.append(current_line)
-        
+
         return lines
     
     def create_speech_bubble(self, text: str, max_width: int, 
@@ -120,7 +127,9 @@ class ImprovedTextRenderer:
             actual_text_width = max(actual_text_width, line_width)
         
         # Calculate bubble dimensions based on actual text size
-        bubble_width = actual_text_width + (2 * padding)
+        # Add minimum width to prevent narrow bubbles for short text
+        min_bubble_width = 150  # Minimum width for aesthetic purposes
+        bubble_width = max(actual_text_width + (2 * padding), min_bubble_width)
         bubble_height = text_height + (2 * padding)
         
         # Add space for tail if needed
@@ -319,6 +328,73 @@ class VoiceFrameVideoGenerator:
         else:
             raise ValueError(f"Time string format '{time_str}' is invalid.")
     
+    def create_copyright_watermark(self, width: int, height: int, 
+                                   text: str = "© 2025 All Rights Reserved",
+                                   font_size: int = 16) -> str:
+        """
+        Create a copyright watermark image
+        
+        Args:
+            width: Video width
+            height: Video height
+            text: Copyright text
+            font_size: Font size for watermark
+        
+        Returns:
+            Path to watermark image
+        """
+        # Create transparent image
+        watermark = Image.new('RGBA', (width, height), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(watermark)
+        
+        # Try to load font
+        font_paths = [
+            '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+            '/System/Library/Fonts/Arial.ttf',
+            'C:/Windows/Fonts/arial.ttf',
+            '/usr/share/fonts/TTF/arial.ttf',
+        ]
+        
+        font = None
+        for path in font_paths:
+            if os.path.exists(path):
+                try:
+                    font = ImageFont.truetype(path, font_size)
+                    break
+                except:
+                    pass
+        
+        if font is None:
+            font = ImageFont.load_default()
+        
+        # Get text dimensions
+        try:
+            bbox = font.getbbox(text)
+            text_width = bbox[2] - bbox[0]
+            text_height = bbox[3] - bbox[1]
+        except AttributeError:
+            text_width, text_height = font.getsize(text)
+        
+        # Position at bottom center
+        x = (width - text_width) // 2
+        y = height - text_height - 20  # 20px from bottom
+        
+        # Draw semi-transparent background
+        padding = 8
+        draw.rectangle(
+            [x - padding, y - padding, x + text_width + padding, y + text_height + padding],
+            fill=(0, 0, 0, 150)
+        )
+        
+        # Draw copyright text in white
+        draw.text((x, y), text, font=font, fill=(255, 255, 255, 200))
+        
+        # Save watermark
+        watermark_path = str(self.base_dir / "watermark_temp.png")
+        watermark.save(watermark_path)
+        print(f"Created copyright watermark: {text}")
+        
+        return watermark_path
 
     
     def get_background_image(self) -> Optional[str]:
@@ -347,15 +423,17 @@ class VoiceFrameVideoGenerator:
     def generate_video_with_dialogues(self, scene_data: Dict, 
                                     character_positions: Optional[Dict] = None,
                                     font_size: int = 20, 
-                                    font_color: str = 'gold') -> bool:
+                                    font_color: str = 'gold',
+                                    copyright_text: str = "© 2025 All Rights Reserved") -> bool:
         """
-        Generate video with dialogue overlays from scene data
+        Generate video with dialogue overlays and copyright watermark from scene data
         
         Args:
             scene_data: Scene data from Gemini containing dialogues
             character_positions: Character positioning configuration
             font_size: Font size for dialogue text
             font_color: Color of dialogue text
+            copyright_text: Text for copyright watermark
         
         Returns:
             bool: True if successful, False otherwise
@@ -386,23 +464,27 @@ class VoiceFrameVideoGenerator:
             W, H = background_clip.size
             print(f"Background size: {W}x{H}")
             
+            # Create copyright watermark
+            watermark_path = self.create_copyright_watermark(W, H, copyright_text)
+            watermark_clip = ImageClip(watermark_path).with_duration(video_duration)
+            
             # Default character positions
             if not character_positions:
                 character_positions = {
                     "Scorpion": {
                         "side": "left", 
                         "max_width": 400,
-                        "tail_side": "left"  # ADD THIS
+                        "tail_side": "left"
                     },
                     "Frog": {
                         "side": "right", 
                         "max_width": 400,
-                        "tail_side": "right"  # ADD THIS
+                        "tail_side": "right"
                     }
                 }
             
             # Create clips for each dialogue
-            all_clips = [background_clip]
+            all_clips = [background_clip, watermark_clip]
             
             for i, dialogue in enumerate(dialogues):
                 try:
@@ -424,11 +506,7 @@ class VoiceFrameVideoGenerator:
                     side = char_config.get("side", "left")
                     max_width = char_config.get("max_width", 400)
                     
-                    # # Create text image using PIL (includes background and border)
-                    # text_renderer = TextRenderer(font_size, font_color)
-                    # text_img = text_renderer.create_text_image(text_content, max_width)
-                    
-                    # NEW CODE - Create speech bubble instead of plain text box
+                    # Create speech bubble instead of plain text box
                     text_renderer = ImprovedTextRenderer(font_size, font_color)
 
                     # Get tail side from character config (or default to left)
@@ -438,18 +516,19 @@ class VoiceFrameVideoGenerator:
                     text_img = text_renderer.create_speech_bubble(
                         text=text_content,
                         max_width=max_width,
-                        padding=12,  # Reduced padding for tighter boxes
+                        padding=12,
                         corner_radius=18,
                         add_tail=True,
                         tail_side=tail_side
                     )
+                    
                     # Save text image temporarily
                     temp_text_path = self.base_dir / f"temp_text_{i}.png"
                     text_img.save(temp_text_path)
                     
-                    # Calculate position
+                    # Calculate position with extra margin for watermark
                     margin = 40
-                    bottom_margin = 60
+                    bottom_margin = 80  # Increased to avoid watermark overlap
                     
                     if side == "left":
                         text_x = margin
@@ -525,34 +604,13 @@ class VoiceFrameVideoGenerator:
                                 sped_up_audio.close()
                                 
                                 print(f"  Saved sped-up audio to {audio_file}, new duration: {audio_clip.duration:.2f}s")
-                            else:
-                                # Audio is too short - pad with silence
-                                silence_duration = expected_duration - actual_duration
-                                print(f"  Audio is {silence_duration:.2f}s too short, will be padded during composition")
-                                # Note: We'll handle short audio by letting MoviePy handle it naturally
                         
                         # Set the start time for this audio clip using MoviePy 2.x API
                         audio_clip = audio_clip.with_start(start_sec)
                         synchronized_audio_clips.append(audio_clip)
                     
-                    # Handle gaps between dialogues by adding silence
-                    final_audio_clips = []
-                    
-                    for i, audio_clip in enumerate(synchronized_audio_clips):
-                        final_audio_clips.append(audio_clip)
-                        
-                        # Check if there's a gap before the next dialogue
-                        if i < len(synchronized_audio_clips) - 1:
-                            current_end = self.convert_time_to_seconds(dialogues[i]['end'])
-                            next_start = self.convert_time_to_seconds(dialogues[i+1]['start'])
-                            gap_duration = next_start - current_end
-                            
-                            if gap_duration > 0.1:  # If gap > 0.1 seconds
-                                print(f"  Gap of {gap_duration:.2f}s detected between dialogues {i+1} and {i+2}")
-                                # Note: Gaps will be handled naturally by CompositeAudioClip positioning
-                    
                     # Combine all audio clips
-                    combined_audio = CompositeAudioClip(final_audio_clips)
+                    combined_audio = CompositeAudioClip(synchronized_audio_clips)
                     
                     # Create final composite with synchronized audio
                     final_clip = CompositeVideoClip(all_clips, size=(W, H)).with_audio(combined_audio)
@@ -595,10 +653,17 @@ class VoiceFrameVideoGenerator:
                     except:
                         pass
             
-            # Clean up temporary text images
+            # Clean up temporary files
             for temp_file in self.base_dir.glob("temp_text_*.png"):
                 try:
                     temp_file.unlink()
+                except:
+                    pass
+            
+            # Clean up watermark
+            if os.path.exists(watermark_path):
+                try:
+                    os.remove(watermark_path)
                 except:
                     pass
             
@@ -611,12 +676,13 @@ class VoiceFrameVideoGenerator:
             traceback.print_exc()
             return False
     
-    def generate_simple_video(self, duration: float = 15.0) -> bool:
+    def generate_simple_video(self, duration: float = 15.0, copyright_text: str = "© 2025 All Rights Reserved") -> bool:
         """
         Generate a simple video without dialogues (fallback)
         
         Args:
             duration: Video duration in seconds
+            copyright_text: Text for copyright watermark
         
         Returns:
             bool: True if successful, False otherwise
@@ -629,6 +695,11 @@ class VoiceFrameVideoGenerator:
             
             # Create simple background clip
             background_clip = ImageClip(background_image_path).with_duration(duration)
+            W, H = background_clip.size
+            
+            # Create copyright watermark
+            watermark_path = self.create_copyright_watermark(W, H, copyright_text)
+            watermark_clip = ImageClip(watermark_path).with_duration(duration)
             
             # Add audio if available
             audio_files = self.get_audio_files()
@@ -636,12 +707,12 @@ class VoiceFrameVideoGenerator:
                 try:
                     audio_clips = [AudioFileClip(f) for f in audio_files]
                     combined_audio = CompositeAudioClip(audio_clips)
-                    final_clip = background_clip.with_audio(combined_audio)
+                    final_clip = CompositeVideoClip([background_clip, watermark_clip], size=(W, H)).with_audio(combined_audio)
                 except Exception as e:
                     print(f"Error adding audio to simple video: {e}")
-                    final_clip = background_clip
+                    final_clip = CompositeVideoClip([background_clip, watermark_clip], size=(W, H))
             else:
-                final_clip = background_clip
+                final_clip = CompositeVideoClip([background_clip, watermark_clip], size=(W, H))
             
             # Render video
             print(f"Rendering simple video to {self.output_path}...")
@@ -655,6 +726,13 @@ class VoiceFrameVideoGenerator:
             # Cleanup
             final_clip.close()
             background_clip.close()
+            watermark_clip.close()
+            
+            if os.path.exists(watermark_path):
+                try:
+                    os.remove(watermark_path)
+                except:
+                    pass
             
             print(f"Simple video generated successfully: {self.output_path}")
             return True
@@ -666,7 +744,8 @@ class VoiceFrameVideoGenerator:
 
 # Convenience functions for integration with main.py
 def generate_video_from_scene_data(base_dir: str, scene_data: Dict, 
-                                 character_positions: Optional[Dict] = None) -> bool:
+                                 character_positions: Optional[Dict] = None,
+                                 copyright_text: str = "© 2025 All Rights Reserved") -> bool:
     """
     Generate video from scene data (for use in main.py)
     
@@ -674,6 +753,7 @@ def generate_video_from_scene_data(base_dir: str, scene_data: Dict,
         base_dir: Base directory containing images and audio
         scene_data: Scene data from Gemini
         character_positions: Character positioning config
+        copyright_text: Text for copyright watermark
     
     Returns:
         bool: True if successful, False otherwise
@@ -681,12 +761,12 @@ def generate_video_from_scene_data(base_dir: str, scene_data: Dict,
     generator = VoiceFrameVideoGenerator(base_dir)
     
     # Try to generate with dialogues first
-    if generator.generate_video_with_dialogues(scene_data, character_positions):
+    if generator.generate_video_with_dialogues(scene_data, character_positions, copyright_text=copyright_text):
         return True
     
     # Fallback to simple video
     print("Falling back to simple video generation...")
-    return generator.generate_simple_video()
+    return generator.generate_simple_video(copyright_text=copyright_text)
 
 
 def generate_simple_video_from_images(base_dir: str, duration: float = 15.0) -> bool:

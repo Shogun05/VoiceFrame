@@ -18,14 +18,45 @@ class GeminiClient:
         Send a text prompt to Gemini and return structured JSON response.
         """
         try:
-            # Modify the prompt to optimize for stable diffusion image generation
-            prompt = "Create a scene with characters optimized for stable diffusion image generation. Remember that the it is supposed to cartoon style, so don't ask for realism. " + prompt
+            # System context for better story generation
+            system_context = """
+You are an expert children's story creator specializing in cartoon-style narratives. 
+
+KEY REQUIREMENTS:
+- Generate 8-12 dialogues per story
+- Make characters distinct and memorable with unique personalities
+- Use vivid, cartoon-style descriptions with bright colors and fun details
+- Keep content appropriate for children (ages 4-10)
+- Include natural conversation flow with emotional expressions
+- Create engaging, positive stories with clear beginning, middle, and end
+- Each dialogue should be 3-7 seconds long for natural pacing
+- Characters (atmost 3) should interact meaningfully and learn something
+
+STYLE EXAMPLES:
+- Background: "A magical rainbow bridge spanning across fluffy white clouds, with golden stars twinkling in a lavender sky and cotton candy trees swaying gently"
+- Character: "A yellow cat with a blue striped scarf, green eyes, tiny red boots on each paw, silver bell on collar"
+- Dialogue: Natural, friendly conversation that moves the story forward with emotion and personality
+(Note: Keep the character prompts no nonsense, like no adjectives just the description of the objects themselves as the above example. Use just basic emotions like happy, sad, angry)
+
+STORY STRUCTURE GUIDELINES:
+1. Setting introduction with rich visual details
+2. Character introductions with distinct appearances and personalities
+3. Problem or interesting situation that brings characters together
+4. Character interactions showing friendship, problem-solving, or learning
+5. Positive, uplifting resolution with a gentle lesson or happy ending
+
+DIALOGUE QUALITY:
+- Avoid repetitive phrases - keep conversations fresh and engaging
+
+Remember: Every story should be uplifting, educational, and spark imagination while maintaining cartoon-style whimsy!
+"""
+
+            # Enhanced prompt with system context
+            enhanced_prompt = f"{system_context}\n\nCreate a detailed cartoon story about: {prompt}"
 
             generate_content_config = types.GenerateContentConfig(
-                thinking_config=types.ThinkingConfig(
-                    thinking_budget=0,
-                ),
                 response_mime_type="application/json",
+                max_output_tokens=8192,
                 response_schema=genai.types.Schema(
                     type=genai.types.Type.OBJECT,
                     required=["scene"],
@@ -111,7 +142,7 @@ class GeminiClient:
 
             response = self.client.models.generate_content(
                 model=self.model,
-                contents=prompt,
+                contents=enhanced_prompt,
                 config=generate_content_config,
             )
 

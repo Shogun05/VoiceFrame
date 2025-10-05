@@ -9,6 +9,9 @@ VoiceFrame is a full-stack AI-powered video generation platform that creates vid
  
  **Demo Video:** [YouTube](https://youtu.be/WByYRbXJqSs)
 
+**Best result achieved:** [YouTube](https://youtu.be/LLsztaIWIic)
+(Since the stable diffusion images are subject to random seed and the prompt from gemini, there is variance of results achieved between each run.)
+
  **Project Documentation:** [Google Drive](https://drive.google.com/file/d/1pxiMgl1T46AFM7q1k-WIrPitWYb5-wDz/view?usp=sharing)
 
 

@@ -5,16 +5,13 @@ A modular class for background generation and character inpainting using InvokeA
 """
 
 import os
-import sys
 import io
-from pathlib import Path
 from PIL import Image
 import uuid
 import requests
-import json
 import time
 import random
-from typing import List, Optional, Tuple, Union
+from typing import List, Optional, Union
 
 # Default settings
 DEFAULT_NEGATIVE_PROMPT = "blurry, low quality, distorted, artifacts, bad anatomy, watermark, text, (photo)+++. greyscale. solid black. painting"

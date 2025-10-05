@@ -57,7 +57,6 @@ Remember: Every story should be uplifting, educational, and spark imagination wh
             generate_content_config = types.GenerateContentConfig(
                 response_mime_type="application/json",
                 max_output_tokens=8192,
-                max_output_tokens=8192,
                 response_schema=genai.types.Schema(
                     type=genai.types.Type.OBJECT,
                     required=["scene"],
@@ -143,7 +142,6 @@ Remember: Every story should be uplifting, educational, and spark imagination wh
 
             response = self.client.models.generate_content(
                 model=self.model,
-                contents=enhanced_prompt,
                 contents=enhanced_prompt,
                 config=generate_content_config,
             )

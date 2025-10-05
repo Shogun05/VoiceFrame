@@ -3,6 +3,14 @@
 ## Project Overview
 VoiceFrame is a full-stack AI-powered video generation platform that creates videos with synchronized dialogue from text prompts. The system uses multiple AI services including Google Gemini for script generation, Stable Diffusion for image generation, voice synthesis for audio, and MoviePy for video assembly.
 
+## Submissions
+
+ **Setup:** [YouTube](https://youtu.be/hIiKdSwJvAo)
+ 
+ **Demo Video:** [YouTube](https://youtu.be/WByYRbXJqSs)
+
+ **Project Documentation:** [Google Drive](https://drive.google.com/file/d/1pxiMgl1T46AFM7q1k-WIrPitWYb5-wDz/view?usp=sharing)
+
 
 ## Setup
 1. Install uv: https://docs.astral.sh/uv/getting-started/installation/
@@ -88,7 +96,6 @@ npm run dev   # run the expo app
   - Voice synthesis for audio generation
   - MoviePy for video assembly
 
----
 ---
 ## System Flow
 
@@ -268,7 +275,6 @@ SPEECH_BUBBLE_CONFIGS = {
     }
 }
 ```
----
 ---
 ## Technical Implementation Details
 
